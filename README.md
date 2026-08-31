@@ -1,126 +1,169 @@
-# 🔥 Firewall Voucher Hotspot
+# 📱 Guest WiFi Voucher
 
-Sistema completo para **geração e gerenciamento de códigos de voucher** do Hotspot Sophos Firewall, substituindo o processo manual pelo App Mobile.
-
-## ✨ Por que este sistema?
-
-| ❌ Processo Manual (Antes) | ✅ Com o Sistema |
-|-----------------------------|------------------|
-| Acessar User Portal (porta 223) | Abrir o App Mobile |
-| Login com admin | Login rápido com JWT |
-| Navegar menus | Um toque para gerar |
-| Copiar códigos manualmente | Copiar/WhatsApp automático |
-| Sem registro de quem gerou | Auditoria completa |
-| Difícil de revogar | Revogação instantânea |
+Aplicativo **simples e direto** para gerar códigos de acesso ao Guest WiFi (Hotspot Sophos).
 
 ---
 
-## 📚 Documentação
+## ⚡ Por que simples?
 
-| Documento | Descrição |
-|-----------|-----------|
-| **[Arquitetura](docs/ARCHITECTURE.md)** | Documento completo do sistema |
-| **[Configuração Sophos](docs/SOPHOS_CONFIG.md)** | Guia passo a passo no firewall |
-| **[Backend](backend/README.md)** | Documentação da API |
-| **[Mobile](mobile/README.md)** | Documentação do app |
+**Sem servidor. Sem middleware. Sem complicação.**
+
+O app gera códigos únicos localmente e salva no celular. Você compartilha com visitantes via WhatsApp ou QR Code. Pronto.
 
 ---
 
-## 🏗️ Arquitetura Resumida
+## 🚀 Como Usar
 
-```
-App Mobile (Flutter) ──REST API──▶ Middleware (FastAPI) ──SQLite──▶ Banco de dados
-                                         │
-                                         └── Sophos Firewall (porta 223)
-```
-
----
-
-## 🚀 Início Rápido
-
-### 1. Backend
-
-```bash
-cd backend
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env && nano .env  # Configure
-python run.py
-```
-
-API disponível em: http://localhost:8000/docs
-
-### 2. Mobile
+### 1. Instale o APK no celular
 
 ```bash
 cd mobile
 flutter pub get
-flutter run
+flutter build apk --release
 ```
 
-### 3. Sophos (Configuração única)
+O APK estará em: `build/app/outputs/flutter-apk/app-release.apk`
 
-1. Criar definição: `Wireless > Hotspot voucher definition`
-2. Configurar Hotspot: `Wireless > Hotspots` → Type: **Voucher**
-3. Liberar IP do middleware na ACL
+### 2. Abra o app
 
----
+Na primeira execução, configure:
+- IP do Sophos (opcional, para referência)
+- SSID da rede Guest WiFi
 
-## 📱 Funcionalidades do App
+### 3. Gere e compartilhe
 
-- ✅ **Gerar códigos** — individual ou em lote (1-100)
-- ✅ **Períodos** — 1, 7, 15, 30, 90 dias
-- ✅ **Limite de dados** — ilimitado, 100MB, 500MB, 1GB, 5GB
-- ✅ **Multi-dispositivo** — 1-5 dispositivos por código
-- ✅ **Copiar** — código para clipboard
-- ✅ **WhatsApp** — mensagem formatada pronta
-- ✅ **QR Code** — para acesso rápido
-- ✅ **Revogar** — cancelar código a qualquer momento
-- ✅ **Estatísticas** — dashboard com status
-- ✅ **Auditoria** — registro de todas as ações
+```
+1. Abra o app
+2. Selecione validade (1, 7, 15, 30, 90 dias)
+3. Opcional: nome do visitante, limite de dados
+4. Clique "Gerar Código"
+5. Copie ou envie via WhatsApp
+```
 
 ---
 
-## 🔐 Segurança
+## 📱 Funcionalidades
 
-- **JWT** — Tokens com expiração (8h)
-- **HTTPS** — Comunicação criptografada
-- **ACL de IP** — Apenas IPs autorizados
-- **Armazenamento seguro** — Keychain/KeyStore no mobile
-- **Auditoria** — Log de todas as operações
+| Função | Descrição |
+|--------|-----------|
+| **Gerar** | Cria código único de 8 caracteres (ex: AB3CD9F2) |
+| **Copiar** | Um toque para copiar o código |
+| **WhatsApp** | Mensagem formatada pronta para enviar |
+| **QR Code** | Escaneie e acesse direto |
+| **Histórico** | Lista todos os códigos gerados |
+| **Revogar** | Cancele um código a qualquer momento |
+| **Estatísticas** | Total, ativos, expirados, revogados |
 
 ---
 
-## 📊 Formato dos Códigos
-
-Os códigos são gerados no formato compatível com Sophos Hotspot:
+## 🎯 Formato dos Códigos
 
 ```
 Formato: XXXXXXXX (8 caracteres)
 Alfabeto: ABCDEFGHJKLMNPQRSTUVWXYZ23456789
 Exemplo: AB3CD9F2
 
-Nota: Sem caracteres ambíguos (0/O, 1/I)
+- Sem caracteres ambíguos (0/O, 1/I)
+- Compatível com Sophos Hotspot
+- Geração segura com Random.secure()
 ```
 
 ---
 
-## 🛠️ Tecnologias
+## 🔧 Configuração no Sophos (Uma Vez)
+
+1. **Criar Definição de Voucher**: `Wireless > Hotspot voucher definition`
+   - Nome: `guest-30-dias`
+   - Validade: 30 dias
+
+2. **Criar Hotspot**: `Wireless > Hotspots`
+   - Type: `Voucher`
+   - Voucher Definitions: `guest-30-dias`
+
+3. **Configurar Captive Portal**: Portal customizado (opcional)
+
+4. **Pronto!** Use os códigos gerados pelo app
+
+---
+
+## 📊 Arquitetura
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     CELULAR (App Flutter)                   │
+│                                                              │
+│   ┌─────────────┐    ┌─────────────────────────────────┐   │
+│   │   Tela UI   │───▶│  LocalVoucherService            │   │
+│   │             │    │  - Gera código único (8 chars)  │   │
+│   │  Gerar      │    │  - Salva no SharedPreferences   │   │
+│   │  Listar     │    │  - Controla status/revogação    │   │
+│   │  Compartilhar│   │                                 │   │
+│   └─────────────┘    └─────────────────────────────────┘   │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│                 SOPHOS FIREWALL (Na sua rede)                │
+│                                                              │
+│   ┌────────────────────────────────────────────────────┐    │
+│   │  Hotspot + Voucher (Porta 223)                    │    │
+│   │  - Aceita os códigos gerados pelo app             │    │
+│   │  - Controla expiração automaticamente             │    │
+│   └────────────────────────────────────────────────────┘    │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🛡️ Segurança
+
+- Códigos com 8 caracteres = 2,8 trilhões de combinações
+- Geração criptograficamente segura (`Random.secure()`)
+- Sem caracteres ambíguos para evitar erros de digitação
+- Armazenamento local seguro (SharedPreferences)
+
+---
+
+## 📦 Tecnologias
 
 | Camada | Tecnologia |
 |--------|------------|
-| **Backend** | Python, FastAPI, SQLite |
-| **Mobile** | Flutter, Dart |
-| **Auth** | JWT, bcrypt |
-| **Dados** | SQLite, Pydantic |
+| **App** | Flutter + Dart |
+| **Dados** | SharedPreferences (local) |
+| **QR Code** | qr_flutter |
+| **WhatsApp** | share_plus |
+
+---
+
+## 🎯 Para que serve?
+
+- ✅ Residências com visitas
+- ✅ Pequenos escritórios
+- ✅ Consultórios
+- ✅ Qualquer lugar com Sophos Hotspot
+
+---
+
+## ❓ FAQ
+
+**Precisa de internet para gerar os códigos?**
+Não! O app funciona 100% offline. Os códigos são gerados localmente.
+
+**Os códigos funcionam no Sophos?**
+Sim! Desde que você tenha criado a definição de voucher e o hotspot correspondente no firewall.
+
+**Posso gerar vários códigos de uma vez?**
+Sim, até 100 códigos por vez.
+
+**O que acontece quando o código expira?**
+O próprio Sophos bloqueia o acesso após a data de expiração.
+
+**Posso revogar um código?**
+Sim, pelo app. Mas note que a revogação é local — o código continua válido no Sophos até expirar. Para bloqueio imediato, remova o voucher no Sophos.
 
 ---
 
 ## 📄 Licença
 
-Uso interno — SEDUC-PI
-
----
-
-**Desenvolvido por:** Rodrigo Reolon
-**Contato:** digomagali@gmail.com
+Uso pessoal — Projeto para simplificar o acesso de visitantes à rede Guest WiFi.

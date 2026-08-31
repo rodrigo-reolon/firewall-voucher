@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
-import 'services/auth_service.dart';
+import 'services/local_voucher_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,12 +12,10 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AuthService()),
-      ],
+    return ChangeNotifierProvider(
+      create: (_) => LocalVoucherService(),
       child: MaterialApp(
-        title: 'Firewall Voucher',
+        title: 'Guest WiFi Voucher',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
@@ -49,24 +45,8 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        home: const AuthWrapper(),
+        home: const HomeScreen(),
       ),
-    );
-  }
-}
-
-class AuthWrapper extends StatelessWidget {
-  const AuthWrapper({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<AuthService>(
-      builder: (context, auth, _) {
-        if (auth.isAuthenticated) {
-          return const HomeScreen();
-        }
-        return const LoginScreen();
-      },
     );
   }
 }

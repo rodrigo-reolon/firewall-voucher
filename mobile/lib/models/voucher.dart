@@ -1,53 +1,75 @@
-/// Modelos de dados para o app Firewall Voucher - Hotspot
+/// Modelos de dados para o app Guest WiFi Voucher
 library models;
 
 import 'package:intl/intl.dart';
 
-/// Representa um código de voucher do Hotspot
+/// Representa um código de voucher gerado localmente
 class VoucherCode {
-  final int? id;
+  final String id;
   final String code;
   final String? description;
-  final String? definitionName;
   final int validityDays;
   final int dataLimitMb;
   final int devicesAllowed;
   final String status;
-  final String createdAt;
-  final String expiresAt;
-  final String? createdBy;
+  final DateTime createdAt;
+  final DateTime expiresAt;
   final String? notes;
 
   VoucherCode({
-    this.id,
+    required this.id,
     required this.code,
     this.description,
-    this.definitionName,
     required this.validityDays,
-    required this.dataLimitMb,
-    required this.devicesAllowed,
-    required this.status,
+    this.dataLimitMb = 0,
+    this.devicesAllowed = 1,
+    this.status = 'active',
     required this.createdAt,
     required this.expiresAt,
-    this.createdBy,
     this.notes,
   });
 
-  factory VoucherCode.fromJson(Map<String, dynamic> json) {
+  factory VoucherCode.create({
+    required String code,
+    String? description,
+    int validityDays = 30,
+    int dataLimitMb = 0,
+    int devicesAllowed = 1,
+    String? notes,
+  }) {
+    final now = DateTime.now();
     return VoucherCode(
-      id: json['id'],
-      code: json['code'] ?? '',
-      description: json['description'],
-      definitionName: json['definition_name'],
-      validityDays: json['validity_days'] ?? 30,
-      dataLimitMb: json['data_limit_mb'] ?? 0,
-      devicesAllowed: json['devices_allowed'] ?? 1,
-      status: json['status'] ?? 'active',
-      createdAt: json['created_at'] ?? '',
-      expiresAt: json['expires_at'] ?? '',
-      createdBy: json['created_by'],
-      notes: json['notes'],
+      id: now.millisecondsSinceEpoch.toString(),
+      code: code,
+      description: description,
+      validityDays: validityDays,
+      dataLimitMb: dataLimitMb,
+      devicesAllowed: devicesAllowed,
+      status: 'active',
+      createdAt: now,
+      expiresAt: now.add(Duration(days: validityDays)),
+      notes: notes,
     );
+  }
+
+  bool get isActive => status == 'active' && !isExpired;
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
+  bool get isRevoked => status == 'revoked';
+
+  String get formattedExpiry {
+    return DateFormat('dd/MM/yyyy').format(expiresAt);
+  }
+
+  String get statusLabel {
+    if (status == 'revoked') return 'Revogado';
+    if (isExpired) return 'Expirado';
+    return 'Ativo';
+  }
+
+  Color get statusColor {
+    if (status == 'revoked') return Colors.red;
+    if (isExpired) return Colors.orange;
+    return Colors.green;
   }
 
   Map<String, dynamic> toJson() {
@@ -55,104 +77,28 @@ class VoucherCode {
       'id': id,
       'code': code,
       'description': description,
-      'definition_name': definitionName,
       'validity_days': validityDays,
       'data_limit_mb': dataLimitMb,
       'devices_allowed': devicesAllowed,
       'status': status,
-      'created_at': createdAt,
-      'expires_at': expiresAt,
-      'created_by': createdBy,
+      'created_at': createdAt.toIso8601String(),
+      'expires_at': expiresAt.toIso8601String(),
       'notes': notes,
     };
   }
 
-  bool get isActive => status == 'active';
-  bool get isExpired => DateTime.parse(expiresAt).isBefore(DateTime.now());
-  bool get isRevoked => status == 'revoked';
-  bool get isUsed => status == 'used';
-
-  String get formattedExpiry {
-    try {
-      final date = DateTime.parse(expiresAt);
-      return DateFormat('dd/MM/yyyy HH:mm').format(date);
-    } catch (_) {
-      return expiresAt;
-    }
-  }
-
-  String get statusLabel {
-    switch (status) {
-      case 'active':
-        return isExpired ? 'Expirado' : 'Ativo';
-      case 'expired':
-        return 'Expirado';
-      case 'revoked':
-        return 'Revogado';
-      case 'used':
-        return 'Usado';
-      default:
-        return status;
-    }
-  }
-}
-
-/// Dados para requisição de geração de voucher
-class VoucherRequest {
-  final int quantity;
-  final String? definitionName;
-  final int validityDays;
-  final int dataLimitMb;
-  final int devicesAllowed;
-  final String? visitorName;
-  final String? notes;
-
-  VoucherRequest({
-    this.quantity = 1,
-    this.definitionName,
-    this.validityDays = 30,
-    this.dataLimitMb = 0,
-    this.devicesAllowed = 1,
-    this.visitorName,
-    this.notes,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'quantity': quantity,
-      'definition_name': definitionName,
-      'validity_days': validityDays,
-      'data_limit_mb': dataLimitMb,
-      'devices_allowed': devicesAllowed,
-      'visitor_name': visitorName,
-      'notes': notes,
-    };
-  }
-}
-
-/// Resposta de autenticação
-class AuthResponse {
-  final String accessToken;
-  final String tokenType;
-  final int expiresIn;
-  final String username;
-  final String role;
-
-  AuthResponse({
-    required this.accessToken,
-    required this.tokenType,
-    required this.expiresIn,
-    required this.username,
-    required this.role,
-  });
-
-  factory AuthResponse.fromJson(Map<String, dynamic> json) {
-    return AuthResponse(
-      accessToken: json['access_token'] ?? '',
-      tokenType: json['token_type'] ?? 'bearer',
-      expiresIn: json['expires_in'] ?? 0,
-      username: json['username'] ?? '',
-      role: json['role'] ?? 'operator',
+  factory VoucherCode.fromJson(Map<String, dynamic> json) {
+    return VoucherCode(
+      id: json['id'],
+      code: json['code'],
+      description: json['description'],
+      validityDays: json['validity_days'] ?? 30,
+      dataLimitMb: json['data_limit_mb'] ?? 0,
+      devicesAllowed: json['devices_allowed'] ?? 1,
+      status: json['status'] ?? 'active',
+      createdAt: DateTime.parse(json['created_at']),
+      expiresAt: DateTime.parse(json['expires_at']),
+      notes: json['notes'],
     );
   }
 }
@@ -173,29 +119,18 @@ class ValidityPeriod {
   ];
 }
 
-/// Estatísticas dos vouchers
-class VoucherStats {
-  final int total;
-  final int active;
-  final int expired;
-  final int revoked;
-  final int used;
+/// Limites de dados disponíveis
+class DataLimit {
+  final int mb;
+  final String label;
 
-  VoucherStats({
-    required this.total,
-    required this.active,
-    required this.expired,
-    required this.revoked,
-    required this.used,
-  });
+  const DataLimit(this.mb, this.label);
 
-  factory VoucherStats.fromJson(Map<String, dynamic> json) {
-    return VoucherStats(
-      total: json['total'] ?? 0,
-      active: json['active'] ?? 0,
-      expired: json['expired'] ?? 0,
-      revoked: json['revoked'] ?? 0,
-      used: json['used'] ?? 0,
-    );
-  }
+  static const List<DataLimit> limits = [
+    DataLimit(0, 'Ilimitado'),
+    DataLimit(100, '100 MB'),
+    DataLimit(500, '500 MB'),
+    DataLimit(1000, '1 GB'),
+    DataLimit(5000, '5 GB'),
+  ];
 }
