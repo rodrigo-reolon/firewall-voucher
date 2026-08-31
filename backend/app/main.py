@@ -30,22 +30,31 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
         description="""
-## Firewall Voucher Middleware
+## Firewall Voucher Middleware - Hotspot
 
-API intermediária para geração e gerenciamento de vouchers de acesso (Guest Users)
-no Sophos Firewall via XML API.
+API intermediária para geração e gerenciamento de códigos de voucher
+do Hotspot no Sophos Firewall.
+
+### Funcionalidades
+
+- Geração de códigos únicos compatíveis com Hotspot Sophos
+- Gerenciamento de validade e cotas
+- Compartilhamento via WhatsApp
+- Geração de QR Code para acesso
+- Revogação de vouchers
+- Auditoria completa
 
 ### Autenticação
 
 Todos os endpoints de voucher requerem autenticação JWT via Bearer Token.
 Use `/api/v1/auth/login` para obter o token.
 
-### Segurança
+### Formato dos Códigos
 
-- Comunicação com o firewall via HTTPS
-- Certificados autoassinados configuráveis
-- Controle de acesso por IP
-- Tokens JWT com expiração
+Os códigos são gerados no formato Sophos Hotspot:
+- 8 caracteres alfanuméricos (maiúsculas + dígitos)
+- Sem caracteres ambíguos (0/O, 1/I)
+- Exemplo: `AB3CD9F2`
         """,
         version=settings.APP_VERSION,
         docs_url="/docs",
@@ -144,26 +153,14 @@ Use `/api/v1/auth/login` para obter o token.
         
         Verifica o status da API e conexão com o Sophos Firewall.
         """
-        from app.services.sophos_service import get_sophos_service
-        sophos = get_sophos_service()
-        
-        # Testar conexão com Sophos (sem bloquear)
-        try:
-            import asyncio
-            # Fire and forget - não bloqueia a resposta
-            asyncio.create_task(sophos.authenticate())
-            sophos_status = "checking"
-        except Exception:
-            sophos_status = "unknown"
-        
         return HealthResponse(
             status="healthy",
             version=settings.APP_VERSION,
-            sophos_connection=sophos_status
+            sophos_connection="local_mode"
         )
     
     # ============================================
-    # REGISTRAR ROTERS
+    # REGISTRAR ROUTERS
     # ============================================
     
     app.include_router(auth_router.router, prefix=settings.API_PREFIX)

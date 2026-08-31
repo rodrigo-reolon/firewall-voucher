@@ -1,6 +1,6 @@
-# Firewall Voucher System
+# Firewall Voucher System - Hotspot
 
-Sistema completo para geração e extração de códigos de acesso de visitantes (vouchers) no Sophos Firewall, composto por uma API intermediária (Middleware) e um Aplicativo Mobile.
+Sistema completo para geração e gerenciamento de códigos de voucher do Hotspot no Sophos Firewall, composto por uma API intermediária (Middleware) e um Aplicativo Mobile Flutter.
 
 ## 🏗️ Arquitetura
 
@@ -15,12 +15,12 @@ Sistema completo para geração e extração de códigos de acesso de visitantes
 │  │              │◀────────────────────── │   Python 3.11+   │      │
 │  └──────────────┘                        └────────┬─────────┘      │
 │                                                   │                 │
-│                                                   │ HTTPS/XML        │
+│                                                   │ HTTPS            │
 │                                                   │                 │
 │                                          ┌────────▼─────────┐      │
 │                                          │  SOPHOS FIREWALL │      │
-│                                          │  (SFOS XML API)  │      │
-│                                          │  Porta 4444      │      │
+│                                          │  Hotspot Portal  │      │
+│                                          │  Porta 223       │      │
 │                                          └──────────────────┘      │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
@@ -39,8 +39,8 @@ firewall-voucher/
 │   │   ├── routers/           # Endpoints da API
 │   │   │   ├── auth_router.py
 │   │   │   └── voucher_router.py
-│   │   ├── services/          # Serviço Sophos XML
-│   │   │   └── sophos_service.py
+│   │   ├── services/          # Serviço de Vouchers
+│   │   │   └── voucher_service.py
 │   │   ├── config.py          # Configurações
 │   │   └── main.py            # App FastAPI
 │   ├── .env.example           # Template de configuração
@@ -70,8 +70,7 @@ firewall-voucher/
 
 - Python 3.11+
 - Flutter 3.16+
-- Sophos Firewall com API XML habilitada
-- Rede com acesso ao firewall
+- Sophos Firewall com Hotspot configurado
 
 ### Backend
 
@@ -120,9 +119,13 @@ flutter build apk --release
 |--------|----------|------|-----------|
 | POST | `/api/v1/auth/login` | Não | Login do operador |
 | GET | `/api/v1/auth/me` | Sim | Dados do operador |
-| POST | `/api/v1/vouchers/generate` | Sim | Gerar voucher |
+| POST | `/api/v1/vouchers/generate` | Sim | Gerar código voucher |
+| POST | `/api/v1/vouchers/generate-batch` | Sim | Gerar múltiplos códigos |
 | GET | `/api/v1/vouchers/list` | Sim | Listar vouchers |
-| DELETE | `/api/v1/vouchers/revoke/{username}` | Sim | Revogar voucher |
+| GET | `/api/v1/vouchers/{code}` | Sim | Buscar voucher |
+| POST | `/api/v1/vouchers/revoke` | Sim | Revogar voucher |
+| GET | `/api/v1/vouchers/{code}/audit` | Sim | Log de auditoria |
+| GET | `/api/v1/vouchers/stats/summary` | Sim | Estatísticas |
 | GET | `/api/v1/health` | Não | Health check |
 
 ### Exemplo: Gerar Voucher
@@ -132,56 +135,62 @@ curl -X POST http://localhost:8000/api/v1/vouchers/generate \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer SEU_TOKEN_JWT" \
   -d '{
-    "visitor_name": "João Silva",
-    "validity_hours": 8,
-    "data_quota_mb": 500,
-    "access_profile": "Guest"
+    "quantity": 1,
+    "validity_days": 30,
+    "data_limit_mb": 500,
+    "devices_allowed": 1,
+    "visitor_name": "João Silva"
   }'
 ```
 
 **Resposta:**
 ```json
 {
-  "username": "guest_20240831143022",
-  "password": "xK9mP2nQ7rT4",
-  "expires_at": "2024-08-31T22:30:22Z",
-  "validity_hours": 8,
-  "visitor_name": "João Silva",
-  "access_profile": "Guest",
+  "id": 1,
+  "code": "AB3CD9F2",
+  "description": "João Silva",
+  "validity_days": 30,
+  "data_limit_mb": 500,
+  "devices_allowed": 1,
   "status": "active",
   "created_at": "2024-08-31T14:30:22Z",
-  "qr_code_data": "REDE: Guest-WiFi\nUSUÁRIO: guest_20240831143022\n..."
+  "expires_at": "2024-09-30T14:30:22Z",
+  "created_by": "admin"
 }
 ```
 
 ## 🔐 Segurança
 
 - **Autenticação JWT** com tokens de expiração configurável
-- **HTTPS** para comunicação com o Sophos (XML API)
 - **Controle de acesso por IP** no middleware
-- **Certificado SSL** autoassinado configurável para ambiente de desenvolvimento
-- **Privilégios mínimos** - conta de serviço dedicada no Sophos
-- **ACL no Sophos** - apenas IPs autorizados acessam a API
+- **Auditoria completa** de todas as operações
+- **Códigos únicos** com verificação de duplicidade
+- **Revogação** de vouchers comprometidos
 
 ## ⚙️ Configuração do Sophos
 
 Veja o guia completo em [`docs/SOPHOS_CONFIG.md`](docs/SOPHOS_CONFIG.md)
 
 Resumo rápido:
-1. Habilitar API XML: **Backup & Firmware > API**
-2. Criar grupo `VoucherManager` com permissões restritas
-3. Criar usuário `svc_voucher` no grupo
-4. Liberar IP do middleware na ACL
+1. Criar Definição de Voucher: `Wireless > Hotspot voucher definition`
+2. Configurar Hotspot: `Wireless > Hotspots` (Type: Voucher)
+3. Criar grupo `HotspotVoucherManager` com permissões restritas
+4. Criar usuário `svc_hotspot_voucher` no grupo
+5. Liberar IP do middleware na ACL
 
 ## 📱 Funcionalidades do App
 
 - ✅ Login com autenticação JWT
-- ✅ Seleção de tempo de validade (1h, 4h, 8h, 24h, 7 dias)
-- ✅ Campo opcional para nome do visitante
-- ✅ Geração de credenciais (usuário + senha)
-- ✅ Cópia de credenciais com um toque
+- ✅ Geração de códigos individuais ou em lote
+- ✅ Seleção de período de validade (1, 7, 15, 30, 90 dias)
+- ✅ Limite de dados configurável
+- ✅ Múltiplos dispositivos por código
+- ✅ Cópia de código com um toque
 - ✅ Compartilhamento via WhatsApp com mensagem formatada
 - ✅ Geração dinâmica de QR Code
+- ✅ Listagem de vouchers com status
+- ✅ Revogação de vouchers
+- ✅ Estatísticas em tempo real
 - ✅ Interface moderna e responsiva (Material 3)
 
 ## 🧪 Testes

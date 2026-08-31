@@ -1,75 +1,65 @@
 """
-Endpoints para geração e gerenciamento de vouchers de acesso.
+Endpoints para geração e gerenciamento de códigos de voucher do Hotspot Sophos.
 """
-import qrcode
-import io
-import base64
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Optional
 
 from app.models.schemas import (
-    VoucherGenerateRequest,
-    VoucherResponse,
-    VoucherListResponse,
-    VoucherInfo,
-    ErrorResponse,
-    ValidityPeriod
+    HotspotVoucherCodeRequest,
+    HotspotVoucherCodeResponse,
+    HotspotVoucherListResponse,
+    VoucherRevokeRequest,
+    VoucherAuditEntry,
+    VoucherStatistics,
+    ErrorResponse
 )
 from app.auth.jwt_handler import get_current_operator
-from app.services.sophos_service import get_sophos_service, SophosService
+from app.services.voucher_service import get_voucher_service, VoucherCodeService
 
-router = APIRouter(prefix="/vouchers", tags=["Vouchers"])
+router = APIRouter(prefix="/vouchers", tags=["Hotspot Vouchers"])
 
 
 @router.post(
     "/generate",
-    response_model=VoucherResponse,
+    response_model=HotspotVoucherCodeResponse,
     responses={
         400: {"model": ErrorResponse},
         401: {"model": ErrorResponse},
-        502: {"model": ErrorResponse},
-        503: {"model": ErrorResponse}
+        500: {"model": ErrorResponse}
     },
-    summary="Gerar novo voucher de acesso",
-    description="Cria um novo usuário visitante no Sophos Firewall com tempo de validade e cota de dados definidos."
+    summary="Gerar código de voucher",
+    description="Gera um novo código de voucher compatível com o Hotspot Sophos."
 )
 async def generate_voucher(
-    request: VoucherGenerateRequest,
+    request: HotspotVoucherCodeRequest,
     current_operator: dict = Depends(get_current_operator),
-    sophos: SophosService = Depends(get_sophos_service)
+    voucher_service: VoucherCodeService = Depends(get_voucher_service)
 ):
     """
-    Gera um novo voucher de acesso para visitante.
+    Gera um novo código de voucher para acesso ao Hotspot.
     
-    - **visitor_name**: Nome do visitante (opcional)
-    - **validity_hours**: Tempo de validade em horas (1-168)
-    - **data_quota_mb**: Cota de dados em MB (padrão: 500)
-    - **access_profile**: Perfil de acesso no Sophos (padrão: Guest)
+    - **quantity**: Quantidade de códigos (1-100)
+    - **definition_name**: Nome da definição no Sophos (opcional)
+    - **validity_days**: Dias de validade (1-730, padrão: 30)
+    - **data_limit_mb**: Limite de dados em MB (0 = ilimitado)
+    - **devices_allowed**: Dispositivos por código (1-5)
+    - **visitor_name**: Nome/identificação do visitante
+    - **notes**: Observações
     
-    Retorna as credenciais geradas (username, password) e dados de expiração.
+    Retorna o código gerado no formato Sophos (8 caracteres alfanuméricos).
     """
     try:
-        result = await sophos.generate_guest_user(
-            visitor_name=request.visitor_name,
-            validity_hours=request.validity_hours,
-            data_quota_mb=request.data_quota_mb or 500,
-            access_profile=request.access_profile
+        result = voucher_service.generate_voucher_code(
+            definition_name=request.definition_name,
+            validity_days=request.validity_days,
+            data_limit_mb=request.data_limit_mb,
+            devices_allowed=request.devices_allowed,
+            description=request.visitor_name,
+            created_by=current_operator["username"],
+            notes=request.notes
         )
         
-        # Gerar dados para QR Code
-        qr_data = _generate_qr_data(result)
-        
-        return VoucherResponse(
-            username=result["username"],
-            password=result["password"],
-            expires_at=result["expires_at"],
-            validity_hours=result["validity_hours"],
-            visitor_name=result["visitor_name"],
-            access_profile=result["access_profile"],
-            status="active",
-            created_at=result["created_at"],
-            qr_code_data=qr_data
-        )
+        return HotspotVoucherCodeResponse(**result)
         
     except HTTPException:
         raise
@@ -80,98 +70,147 @@ async def generate_voucher(
         )
 
 
-@router.get(
-    "/list",
-    response_model=VoucherListResponse,
-    summary="Listar vouchers ativos",
-    description="Retorna todos os usuários visitantes ativos no Sophos Firewall."
+@router.post(
+    "/generate-batch",
+    response_model=list[HotspotVoucherCodeResponse],
+    summary="Gerar múltiplos códigos",
+    description="Gera vários códigos de voucher de uma vez."
 )
-async def list_vouchers(
+async def generate_batch_vouchers(
+    request: HotspotVoucherCodeRequest,
     current_operator: dict = Depends(get_current_operator),
-    sophos: SophosService = Depends(get_sophos_service)
+    voucher_service: VoucherCodeService = Depends(get_voucher_service)
 ):
-    """Lista todos os vouchers/visitantes ativos."""
-    guests = await sophos.list_active_guests()
-    
-    vouchers = []
-    for guest in guests:
-        vouchers.append(VoucherInfo(
-            username=guest.get("Username", ""),
-            expires_at=guest.get("ExpiresAt", ""),
-            created_at=guest.get("CreatedAt", ""),
-            access_profile=guest.get("Profile", "Guest"),
-            status=guest.get("Status", "active"),
-            visitor_name=guest.get("Description", "")
-        ))
-    
-    return VoucherListResponse(total=len(vouchers), vouchers=vouchers)
-
-
-@router.delete(
-    "/revoke/{username}",
-    summary="Revogar voucher",
-    description="Remove um usuário visitante do Sophos Firewall."
-)
-async def revoke_voucher(
-    username: str,
-    current_operator: dict = Depends(get_current_operator),
-    sophos: SophosService = Depends(get_sophos_service)
-):
-    """Revoga um voucher específico pelo username."""
-    success = await sophos.revoke_guest_user(username)
-    
-    if success:
-        return {"status": "success", "message": f"Voucher {username} revogado com sucesso"}
-    else:
+    """Gera múltiplos códigos de voucher."""
+    try:
+        results = voucher_service.generate_multiple_codes(
+            quantity=request.quantity,
+            definition_name=request.definition_name,
+            validity_days=request.validity_days,
+            data_limit_mb=request.data_limit_mb,
+            devices_allowed=request.devices_allowed,
+            description_prefix=request.visitor_name,
+            created_by=current_operator["username"]
+        )
+        
+        return [HotspotVoucherCodeResponse(**r) for r in results]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Falha ao revogar voucher {username}"
+            detail=f"Erro ao gerar vouchers: {str(e)}"
         )
 
 
-def _generate_qr_data(voucher_data: dict) -> str:
+@router.get(
+    "/list",
+    response_model=HotspotVoucherListResponse,
+    summary="Listar vouchers",
+    description="Lista todos os códigos de voucher gerenciados."
+)
+async def list_vouchers(
+    status_filter: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    current_operator: dict = Depends(get_current_operator),
+    voucher_service: VoucherCodeService = Depends(get_voucher_service)
+):
     """
-    Gera dados formatados para QR Code.
+    Lista vouchers com filtros.
     
-    O QR Code contém instruções de acesso formatadas para fácil leitura
-    pelo visitante ao escanear com o celular.
+    - **status_filter**: Filtrar por status (active/expired/revoked/used)
+    - **limit**: Limite de resultados (padrão: 50)
+    - **offset**: Offset para paginação
     """
-    wifi_ssid = "Guest-WiFi"  # Deve ser configurado conforme ambiente
-    
-    qr_content = (
-        f"REDE: {wifi_ssid}\n"
-        f"USUÁRIO: {voucher_data['username']}\n"
-        f"SENHA: {voucher_data['password']}\n"
-        f"VALIDADE: {voucher_data['expires_at'].strftime('%d/%m/%Y %H:%M')}\n"
-        f"PERFIL: {voucher_data['access_profile']}"
+    result = voucher_service.list_vouchers(
+        status=status_filter,
+        limit=limit,
+        offset=offset
     )
     
-    return qr_content
-
-
-def generate_qr_code_image(data: str) -> str:
-    """
-    Gera imagem do QR Code em base64.
+    vouchers = [HotspotVoucherCodeResponse(**v) for v in result["vouchers"]]
     
-    Args:
-        data: Dados a serem codificados no QR Code
-        
-    Returns:
-        String base64 da imagem PNG
-    """
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=4,
+    return HotspotVoucherListResponse(
+        total=result["total"],
+        limit=result["limit"],
+        offset=result["offset"],
+        vouchers=vouchers
     )
-    qr.add_data(data)
-    qr.make(fit=True)
+
+
+@router.get(
+    "/{code}",
+    response_model=HotspotVoucherCodeResponse,
+    summary="Buscar voucher",
+    description="Busca um voucher pelo código."
+)
+async def get_voucher(
+    code: str,
+    current_operator: dict = Depends(get_current_operator),
+    voucher_service: VoucherCodeService = Depends(get_voucher_service)
+):
+    """Busca um voucher específico pelo código."""
+    voucher = voucher_service.get_voucher(code)
     
-    img = qr.make_image(fill_color="black", back_color="white")
+    if not voucher:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Voucher {code} não encontrado"
+        )
     
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
+    return HotspotVoucherCodeResponse(**voucher)
+
+
+@router.post(
+    "/revoke",
+    summary="Revogar voucher",
+    description="Revoga um código de voucher (cancela acesso)."
+)
+async def revoke_voucher(
+    request: VoucherRevokeRequest,
+    current_operator: dict = Depends(get_current_operator),
+    voucher_service: VoucherCodeService = Depends(get_voucher_service)
+):
+    """Revoga um voucher pelo código."""
+    voucher_service.revoke_voucher(
+        code=request.code,
+        revoked_by=current_operator["username"]
+    )
     
-    return base64.b64encode(buffer.getvalue()).decode()
+    return {
+        "status": "success",
+        "message": f"Voucher {request.code} revogado com sucesso"
+    }
+
+
+@router.get(
+    "/{code}/audit",
+    response_model=list[VoucherAuditEntry],
+    summary="Log de auditoria",
+    description="Retorna o log de auditoria de um voucher."
+)
+async def get_voucher_audit(
+    code: str,
+    current_operator: dict = Depends(get_current_operator),
+    voucher_service: VoucherCodeService = Depends(get_voucher_service)
+):
+    """Retorna log de auditoria de um voucher."""
+    audit_log = voucher_service.get_audit_log(code)
+    return [VoucherAuditEntry(**entry) for entry in audit_log]
+
+
+@router.get(
+    "/stats/summary",
+    response_model=VoucherStatistics,
+    summary="Estatísticas",
+    description="Retorna estatísticas gerais dos vouchers."
+)
+async def get_statistics(
+    current_operator: dict = Depends(get_current_operator),
+    voucher_service: VoucherCodeService = Depends(get_voucher_service)
+):
+    """Retorna estatísticas dos vouchers."""
+    stats = voucher_service.get_statistics()
+    return VoucherStatistics(**stats)

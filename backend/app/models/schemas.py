@@ -7,15 +7,6 @@ from datetime import datetime
 from enum import Enum
 
 
-class ValidityPeriod(int, Enum):
-    """Períodos de validade disponíveis para vouchers."""
-    ONE_HOUR = 1
-    FOUR_HOURS = 4
-    EIGHT_HOURS = 8
-    TWENTY_FOUR_HOURS = 24
-    SEVEN_DAYS = 168  # 7 * 24
-
-
 class VoucherGenerateRequest(BaseModel):
     """Dados para geração de um novo voucher."""
     
@@ -121,3 +112,120 @@ class HealthResponse(BaseModel):
     version: str
     sophos_connection: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# =============================================
+# NOVOS MODELOS - HOTSPOT VOUCHER CODES
+# =============================================
+
+
+class HotspotVoucherCodeRequest(BaseModel):
+    """Dados para gerar código de voucher do Hotspot."""
+    
+    quantity: int = Field(
+        default=1,
+        ge=1,
+        le=100,
+        description="Quantidade de códigos a gerar",
+        examples=[1]
+    )
+    
+    definition_name: Optional[str] = Field(
+        default=None,
+        description="Nome da definição de voucher no Sophos",
+        examples=["30-dias"]
+    )
+    
+    validity_days: int = Field(
+        default=30,
+        ge=1,
+        le=730,
+        description="Dias de validade do voucher",
+        examples=[30]
+    )
+    
+    data_limit_mb: int = Field(
+        default=0,
+        ge=0,
+        description="Limite de dados em MB (0 = ilimitado)",
+        examples=[500]
+    )
+    
+    devices_allowed: int = Field(
+        default=1,
+        ge=1,
+        le=5,
+        description="Dispositivos permitidos por código",
+        examples=[1]
+    )
+    
+    visitor_name: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Nome/identificação do visitante",
+        examples=["João Silva"]
+    )
+    
+    notes: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Observações",
+        examples=["Acesso para visitante do setor X"]
+    )
+
+
+class HotspotVoucherCodeResponse(BaseModel):
+    """Resposta de código de voucher gerado."""
+    
+    id: int
+    code: str
+    description: Optional[str] = None
+    definition_name: Optional[str] = None
+    validity_days: int
+    data_limit_mb: int
+    devices_allowed: int
+    status: str
+    created_at: str
+    expires_at: str
+    created_by: Optional[str] = None
+
+
+class HotspotVoucherListResponse(BaseModel):
+    """Lista de códigos de voucher."""
+    
+    total: int
+    limit: int
+    offset: int
+    vouchers: List[HotspotVoucherCodeResponse]
+
+
+class VoucherRevokeRequest(BaseModel):
+    """Dados para revogar um voucher."""
+    
+    code: str = Field(
+        min_length=6,
+        max_length=20,
+        description="Código do voucher a ser revogado",
+        examples=["AB3CD9F2"]
+    )
+
+
+class VoucherAuditEntry(BaseModel):
+    """Entrada de auditoria de voucher."""
+    
+    id: int
+    action: str
+    details: Optional[str] = None
+    performed_by: Optional[str] = None
+    performed_at: str
+
+
+class VoucherStatistics(BaseModel):
+    """Estatísticas dos vouchers."""
+    
+    total: int
+    active: int
+    expired: int
+    revoked: int
+    used: int
+    by_status: dict

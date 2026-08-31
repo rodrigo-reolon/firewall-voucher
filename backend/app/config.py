@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     """Configurações carregadas de variáveis de ambiente (.env)."""
     
     # Aplicação
-    APP_NAME: str = "Firewall Voucher Middleware"
+    APP_NAME: str = "Firewall Voucher Middleware - Hotspot"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     API_PREFIX: str = "/api/v1"
@@ -24,14 +24,6 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "change-this-in-production-use-secret-key-min-32-chars"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 horas
-    
-    # Sophos Firewall
-    SOPHOS_HOST: str = "192.168.130.71"
-    SOPHOS_PORT: int = 4444  # Porta padrão da API XML do SFOS
-    SOPHOS_USERNAME: str = "admin"
-    SOPHOS_PASSWORD: str = ""
-    SOPHOS_VERIFY_SSL: bool = False  # False para certificados autoassinados
-    SOPHOS_TIMEOUT: int = 30
     
     # Controle de acesso IP (lista de IPs autorizados)
     ALLOWED_IPS: List[str] = ["127.0.0.1", "192.168.130.0/24"]

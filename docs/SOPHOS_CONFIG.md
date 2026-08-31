@@ -1,12 +1,12 @@
-# Guia de Configuração - Sophos Firewall (SFOS)
+# Guia de Configuração - Sophos Firewall Hotspot com Vouchers
 
 ## 📋 Visão Geral
 
-Este guia descreve como configurar o Sophos Firewall para permitir a integração com o sistema de geração de vouchers via API XML.
+Este guia descreve como configurar o Sophos Firewall para trabalhar com códigos de voucher do Hotspot, integrados ao sistema de geração automática.
 
 ---
 
-## 1. Habilitar a API XML no SFOS
+## 1. Habilitar o Hotspot com Vouchers no SFOS
 
 ### Passo a Passo
 
@@ -14,24 +14,54 @@ Este guia descreve como configurar o Sophos Firewall para permitir a integraçã
    - URL: `https://<IP_DO_FIREWALL>:4444`
    - Exemplo: `https://192.168.130.71:4444`
 
-2. **Navegue até Backup & Firmware**
-   - Menu: **Backup & Firmware** → **API**
+2. **Navegue até Wireless > Hotspot**
+   - Clique em **Add** para criar um novo Hotspot
 
-3. **Habilitar API**
-   - Marque a opção **"Enable API"**
-   - Porta padrão: **4444** (HTTPS)
-   - Clique em **Apply**
+3. **Configurar o Hotspot**
+   ```
+   Nome: Guest-Hotspot
+   Interfaces: Selecione a interface Guest (ex: GuestAP)
+   Hotspot Type: Voucher
+   ```
 
-4. **Verificar Status**
-   - A API deve mostrar status "Running"
-   - Teste de acesso: `https://<IP>:4444/webconsole/APIController`
+4. **Selecionar Definição de Voucher**
+   - Em **Voucher Definitions**, selecione a definição criada
+   - (ex: "30-dias" para vouchers de 30 dias)
+
+5. **Configurações do Portal**
+   - **Captive Portal**: Habilitado
+   - **Método de Autenticação**: Voucher
+   - **Customização**: Upload do HTML customizado (já existente)
+
+6. **Aplicar**
+   - Clique em **Save** e depois **Apply**
 
 ---
 
-## 2. Criar Administrador com Privilégios Mínimos
+## 2. Criar Definição de Voucher
+
+### Passo a Passo
+
+1. **Navegue até** `Wireless > Hotspot voucher definition`
+
+2. **Criar Nova Definição**
+   - Clique em **Add**
+   - **Nome**: `30-dias`
+   - **Descrição**: `Voucher com validade de 30 dias`
+   - **Validity Period**: `30`
+   - **Validity Unit**: `Days`
+   - **Time Quota**: (opcional, para limite de tempo online)
+   - **Data Volume**: (opcional, para limite de dados em MB)
+   - **Status**: `Enable`
+
+3. **Salvar e Aplicar**
+
+---
+
+## 3. Criar Administrador com Privilégios Mínimos
 
 ### Objetivo
-Criar uma conta de serviço dedicada para o middleware, com permissões restritas ao gerenciamento de usuários visitantes.
+Criar uma conta de serviço dedicada para o middleware, com permissões restritas.
 
 ### Passo a Passo
 
@@ -40,138 +70,77 @@ Criar uma conta de serviço dedicada para o middleware, com permissões restrita
 
 2. **Criar Novo Grupo**
    - Clique em **Add** → **Administrator Group**
-   - Nome: `VoucherManager`
-   - Descrição: `Gerenciamento de vouchers de acesso`
+   - Nome: `HotspotVoucherManager`
+   - Descrição: `Gerenciamento de vouchers do Hotspot`
 
 3. **Configurar Permissões**
    - Aba **Permissions**:
-     - ✅ **User Management** → **Guest Users** (Read/Write)
-     - ✅ **User Management** → **Local Users** (Read)
+     - ✅ **User Management** → **Hotspot** (Read/Write)
+     - ✅ **User Management** → **Hotspot Voucher Definition** (Read)
+     - ✅ **User Management** → **Guest Users** (Read)
      - ❌ **Network Configuration** (No Access)
      - ❌ **Firewall Rules** (No Access)
-     - ❌ **System Configuration** (No Access)
-     - ❌ **Backup & Restore** (No Access)
 
 4. **Criar Usuário de Serviço**
    - Menu: **Administrators** → **Administrators**
    - Clique em **Add** → **Administrator**
-   - **Username**: `svc_voucher`
-   - **Password**: (senha forte - mínimo 12 caracteres)
-   - **Administrator Group**: `VoucherManager`
-   - **Email**: (opcional, para alertas)
+   - **Username**: `svc_hotspot_voucher`
+   - **Password**: (senha forte)
+   - **Administrator Group**: `HotspotVoucherManager`
 
 5. **Salvar e Aplicar**
-   - Clique em **Save** e depois **Apply**
 
 ---
 
-## 3. Configurar Controle de Acesso IP (ACL)
+## 4. Configurar Controle de Acesso IP (ACL)
 
 ### Objetivo
-Restringir o acesso da API XML apenas ao IP do servidor middleware.
+Restringir o acesso da User Portal (porta 223) apenas ao IP do middleware.
 
 ### Passo a Passo
 
-1. **Acesse API Access Control**
+1. **Acesse User Portal Settings**
    - Menu: **Backup & Firmware** → **API** → **API Access Control**
 
 2. **Adicionar IP Autorizado**
    - Clique em **Add**
-   - **IP Address**: IP do servidor middleware
-     - Exemplo: `192.168.130.50` (IP do servidor onde roda o FastAPI)
-   - **Subnet Mask**: `255.255.255.255` (host único)
+   - **IP Address**: IP do servidor middleware (ex: `192.168.130.50`)
+   - **Subnet Mask**: `255.255.255.255`
    - **Description**: `Servidor Middleware Voucher`
 
-3. **Bloquear Outros IPs (Opcional mas Recomendado)**
-   - Adicione regra para bloquear `0.0.0.0/0` (negar tudo)
-   - Certifique-se de que a regra de permissão está acima da negação
-
-4. **Aplicar Configurações**
-   - Clique em **Apply**
+3. **Aplicar**
 
 ---
 
-## 4. Configurar Perfil de Acesso para Visitantes
+## 5. Testar a Geração de Vouchers Manualmente
 
-### Objetivo
-Definir o perfil de rede que os visitantes terão ao se conectarem.
+### Via User Portal (porta 223)
 
-### Passo a Passo
-
-1. **Acesse Profiles de Usuário**
-   - Menu: **Users** → **User Profiles**
-
-2. **Criar/Editar Perfil Guest**
-   - Nome: `Guest`
-   - **Idle Timeout**: 30 minutos
-   - **Session Timeout**: 8 horas
-   - **Data Quota**: 500 MB (padrão)
-   - **Bandwidth**: Definir limite se necessário (ex: 5 Mbps)
-
-3. **Configurar Autenticação Captive Portal**
-   - Menu: **Wireless** → **Guest WiFi**
-   - Habilitar **Captive Portal**
-   - Método de autenticação: **Local Authentication**
-   - Perfil padrão: `Guest`
+1. Acesse `https://<IP_DO_FIREWALL>:223/userportal/`
+2. Faça login com credenciais de administrador
+3. No menu lateral, selecione **Hotspot**
+4. No painel central:
+   - **Profile**: Selecione "30-dias"
+   - **Days**: 30
+   - **Quantity**: 5 (ou quantos precisar)
+5. Clique em **Generate**
+6. Os códigos serão gerados e podem ser visualizados/impressos
 
 ---
 
-## 5. Testar a Conexão
-
-### Via cURL (do servidor middleware)
-
-```bash
-# Testar autenticação
-curl -k -X POST https://192.168.130.71:4444/webconsole/APIController \
-  -H "Content-Type: application/xml" \
-  -d '<?xml version="1.0" encoding="UTF-8"?>
-<Request>
-  <Login>
-    <Username>svc_voucher</Username>
-    <Password>SuaSenhaAqui</Password>
-  </Login>
-  <Action>
-    <Name>GetSystemStatus</Name>
-  </Action>
-</Request>'
-```
-
-### Via Python (teste rápido)
-
-```python
-import httpx
-import xmltodict
-
-url = "https://192.168.130.71:4444/webconsole/APIController"
-xml = """<?xml version="1.0" encoding="UTF-8"?>
-<Request>
-  <Login>
-    <Username>svc_voucher</Username>
-    <Password>SuaSenhaAqui</Password>
-  </Login>
-  <Action>
-    <Name>GetSystemStatus</Name>
-  </Action>
-</Request>"""
-
-response = httpx.post(url, content=xml, verify=False)
-print(xmltodict.parse(response.text))
-```
-
----
-
-## 6. Configuração do Middleware (.env)
+## 6. Configuração do Middleware
 
 Após configurar o Sophos, ajuste o arquivo `.env` do backend:
 
 ```env
-# Sophos Firewall
-SOPHOS_HOST=192.168.130.71
-SOPHOS_PORT=4444
-SOPHOS_USERNAME=svc_voucher
-SOPHOS_PASSWORD=SuaSenhaAqui
-SOPHOS_VERIFY_SSL=false
-SOPHOS_TIMEOUT=30
+# Aplicação
+APP_NAME=Firewall Voucher Middleware - Hotspot
+DEBUG=true
+PORT=8000
+
+# JWT - ALTERAR EM PRODUÇÃO!
+JWT_SECRET_KEY=sua-chave-secreta-de-32-caracteres-minimo
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=480
 
 # Controle de IPs
 ALLOWED_IPS=127.0.0.1,192.168.130.50
@@ -179,48 +148,73 @@ ALLOWED_IPS=127.0.0.1,192.168.130.50
 
 ---
 
-## 7. Segurança - Boas Práticas
+## 7. Geração de Códigos via Sistema
 
-### ✅ Recomendações
+### Funcionamento
 
-1. **Senha Forte**: Use senha com 16+ caracteres, incluindo maiúsculas, minúsculas, números e símbolos
-2. **IP Fixo**: Configure IP fixo para o servidor middleware
-3. **HTTPS**: A API XML já opera via HTTPS por padrão
-4. **Logs**: Monitore os logs de acesso do Sophos regularmente
-5. **Rotação de Senhas**: Altere a senha do svc_voucher a cada 90 dias
-6. **Firewall Interno**: Restrinja o acesso à porta 4444 apenas para o IP do middleware
+O sistema gera códigos no formato compatível com o Sophos Hotspot:
+- **Formato**: 8 caracteres alfanuméricos (maiúsculas + dígitos)
+- **Exemplo**: `AB3CD9F2`
+- **Sem caracteres ambíguos**: 0/O, 1/I são excluídos
 
-### ⚠️ Alertas
+### Como usar
 
-- Nunca exponha a porta 4444 à internet
-- Não use a conta admin padrão para o middleware
-- Mantenha o SFOS atualizado com os últimos patches de segurança
-- Desative a API quando não estiver em uso (manutenções)
+1. **Acesse o App Mobile** ou **API diretamente**
+2. Selecione:
+   - Quantidade de códigos
+   - Período de validade (1, 7, 15, 30, 90 dias)
+   - Limite de dados (opcional)
+   - Nome do visitante (opcional)
+3. Clique em **Gerar Código**
+4. Compartilhe via WhatsApp ou copie o código
+
+### Integração com Sophos
+
+- Os códigos gerados são **independentes** (armazenados localmente no banco SQLite)
+- O sistema **sincroniza status** com o Sophos para verificar uso/expiração
+- Para códigos usados no Hotspot, o status é atualizado automaticamente
 
 ---
 
-## 8. Troubleshooting
+## 8. Segurança - Boas Práticas
 
-### Erro: Connection Refused
-- Verificar se a API está habilitada no SFOS
-- Verificar se a porta 4444 está liberada no firewall local do servidor
+### ✅ Recomendações
 
-### Erro: 401 Unauthorized
-- Verificar credenciais (usuário/senha)
-- Verificar se o IP está na ACL
+1. **Senha Forte**: Use senha com 16+ caracteres
+2. **IP Fixo**: Configure IP fixo para o servidor middleware
+3. **HTTPS**: O Sophos usa HTTPS por padrão
+4. **Logs**: Monitore logs de acesso regularmente
+5. **Rotação de Senhas**: Altere a senha do svc_hotspot_voucher periodicamente
+6. **User Portal**: Restrinja acesso à porta 223 apenas para IPs autorizados
 
-### Erro: SSL Certificate
-- O certificado do SFOS é autoassinado por padrão
-- Configure `SOPHOS_VERIFY_SSL=false` no middleware
-- Em produção, importe o certificado CA do SFOS
+### ⚠️ Alertas
 
-### Erro: Permission Denied
-- Verificar permissões do grupo VoucherManager
+- Nunca exponha a porta 223 à internet
+- Não use a conta admin padrão
+- Mantenha o SFOS atualizado
+- Desabilite acessos não utilizados
+
+---
+
+## 9. Troubleshooting
+
+### Erro: Código não aceito no Hotspot
+- Verificar se a definição de voucher está ativa
+- Verificar se o Hotspot está usando a definição correta
+- Verificar se o código não expirou
+
+### Erro: Sem conexão com o servidor
+- Verificar IP do middleware na ACL
+- Verificar se a porta 223 está liberada
+- Verificar certificado SSL
+
+### Erro: Permissão negada
+- Verificar permissões do grupo HotspotVoucherManager
 - Verificar se o usuário pertence ao grupo correto
 
 ---
 
-## 9. Referências
+## 10. Referências
 
-- [Sophos Firewall API Documentation](https://docs.sophos.com/nsg/sophos-firewall/19.5/Help/en-us/webhelp/onlinehelp/AdministratorHelp/APIGuide/)
-- [SFOS XML API Reference](https://docs.sophos.com/nsg/sophos-firewall/19.5/Help/en-us/webhelp/onlinehelp/AdministratorHelp/API/)
+- [Sophos Firewall - Hotspot Voucher](https://docs.sophos.com/nsg/sophos-firewall/20.0/Help/en-us/webhelp/onlinehelp/VPNAndUserPortalHelp/UserPortal/Hotspots/HotspotTypeVoucher/)
+- [Provide guest access using a hotspot voucher](https://docs.sophos.com/nsg/sophos-firewall/22.0/Help/en-us/webhelp/onlinehelp/AdministratorHelp/Wireless/HowToArticles/WirelessProvideGuestAccessVoucher/)

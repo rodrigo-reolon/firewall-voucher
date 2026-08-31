@@ -1,6 +1,6 @@
-# Firewall Voucher Middleware - Backend
+# Firewall Voucher Middleware - Backend (Hotspot)
 
-Middleware API para geração e gerenciamento de vouchers de acesso no Sophos Firewall.
+API intermediária para geração e gerenciamento de códigos de voucher do Hotspot Sophos.
 
 ## Estrutura do Projeto
 
@@ -10,7 +10,7 @@ backend/
 │   ├── auth/          # Autenticação JWT
 │   ├── models/        # Modelos Pydantic
 │   ├── routers/       # Endpoints da API
-│   ├── services/      # Serviço Sophos XML API
+│   ├── services/      # Serviço de Vouchers (SQLite)
 │   ├── config.py      # Configurações
 │   └── main.py        # Aplicação FastAPI
 ├── requirements.txt
@@ -49,7 +49,11 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 |--------|----------|-----------|
 | POST | `/api/v1/auth/login` | Login do operador |
 | GET | `/api/v1/auth/me` | Dados do operador |
-| POST | `/api/v1/vouchers/generate` | Gerar voucher |
+| POST | `/api/v1/vouchers/generate` | Gerar código voucher |
+| POST | `/api/v1/vouchers/generate-batch` | Gerar múltiplos |
 | GET | `/api/v1/vouchers/list` | Listar vouchers |
-| DELETE | `/api/v1/vouchers/revoke/{username}` | Revogar voucher |
+| GET | `/api/v1/vouchers/{code}` | Buscar voucher |
+| POST | `/api/v1/vouchers/revoke` | Revogar voucher |
+| GET | `/api/v1/vouchers/{code}/audit` | Auditoria |
+| GET | `/api/v1/vouchers/stats/summary` | Estatísticas |
 | GET | `/api/v1/health` | Health check |
