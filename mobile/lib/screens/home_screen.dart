@@ -238,7 +238,7 @@ Use este código para se conectar à rede Guest WiFi.
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Guest WiFi Voucher'),
+        title: const Text('Reolon Visitantes'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),

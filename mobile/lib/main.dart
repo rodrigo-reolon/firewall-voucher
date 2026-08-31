@@ -16,7 +16,7 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => SophosVoucherService(),
       child: MaterialApp(
-        title: 'Guest WiFi Voucher',
+        title: 'Reolon Visitantes',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
