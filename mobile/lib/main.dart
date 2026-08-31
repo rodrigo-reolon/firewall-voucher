@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'screens/connection_screen.dart';
 import 'screens/home_screen.dart';
-import 'services/local_voucher_service.dart';
+import 'services/sophos_voucher_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -13,7 +14,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => LocalVoucherService(),
+      create: (_) => SophosVoucherService(),
       child: MaterialApp(
         title: 'Guest WiFi Voucher',
         debugShowCheckedModeBanner: false,
@@ -45,8 +46,24 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        home: const HomeScreen(),
+        home: const AuthWrapper(),
       ),
+    );
+  }
+}
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<SophosVoucherService>(
+      builder: (context, service, _) {
+        if (service.isConnected) {
+          return const HomeScreen();
+        }
+        return const ConnectionScreen();
+      },
     );
   }
 }
