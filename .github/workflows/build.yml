@@ -25,29 +25,25 @@ jobs:
           channel: 'stable'
       
       - name: Create Flutter project
-        run: |
-          flutter create -t app --org com.guestwifi --project-name voucher temp_project
+        run: flutter create -t app --org com.guestwifi --project-name voucher build_project
       
-      - name: Copy Dart code
+      - name: Copy source code
         run: |
-          cp -r mobile/lib/* temp_project/lib/
-      
-      - name: Replace pubspec.yaml
-        run: |
-          cp mobile/pubspec.yaml temp_project/
+          cp -r mobile/lib/* build_project/lib/
+          cp mobile/pubspec.yaml build_project/
       
       - name: Install dependencies
         run: |
-          cd temp_project
+          cd build_project
           flutter pub get
       
       - name: Build APK
         run: |
-          cd temp_project
+          cd build_project
           flutter build apk --release
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: temp_project/build/app/outputs/flutter-apk/app-release.apk
+          path: build_project/build/app/outputs/flutter-apk/app-release.apk
