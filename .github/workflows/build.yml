@@ -24,17 +24,21 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
       
-      - name: Create Flutter project and copy code
+      - name: Create Flutter project
         run: |
           flutter create -t app --org com.guestwifi --project-name voucher temp_project
+      
+      - name: Copy Dart code
+        run: |
           cp -r mobile/lib/* temp_project/lib/
+      
+      - name: Replace pubspec.yaml
+        run: |
           cp mobile/pubspec.yaml temp_project/
       
-      - name: Clean and Install dependencies
+      - name: Install dependencies
         run: |
           cd temp_project
-          flutter clean
-          rm -rf build .dart_tool android/.gradle
           flutter pub get
       
       - name: Build APK
