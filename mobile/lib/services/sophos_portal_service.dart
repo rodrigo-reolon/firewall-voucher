@@ -114,25 +114,28 @@ class SophosPortalService {
   }
 
   String? _extractCsrfToken(String html) {
-    final regex = RegExp(
+    // Procurar por: <input type="hidden" name="csrf_token" value="..." />
+    var regex = RegExp(
       r'<input[^>]*name=["\']csrf_token["\'][^>]*value=["\']([^"\']+)["\']',
       caseSensitive: false,
     );
     var match = regex.firstMatch(html);
     if (match != null) return match.group(1);
 
-    final regex2 = RegExp(
+    // Alternativa: name="token"
+    regex = RegExp(
       r'<input[^>]*name=["\']token["\'][^>]*value=["\']([^"\']+)["\']',
       caseSensitive: false,
     );
-    match = regex2.firstMatch(html);
+    match = regex.firstMatch(html);
     if (match != null) return match.group(1);
 
-    final regex3 = RegExp(
+    // Alternativa: meta name="csrf-token"
+    regex = RegExp(
       r'<meta[^>]*name=["\']csrf-token["\'][^>]*content=["\']([^"\']+)["\']',
       caseSensitive: false,
     );
-    match = regex3.firstMatch(html);
+    match = regex.firstMatch(html);
     if (match != null) return match.group(1);
 
     return null;
