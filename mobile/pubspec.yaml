@@ -1,5 +1,5 @@
 name: firewall_voucher
-description: Aplicativo para geração de vouchers de acesso ao Guest WiFi via Sophos Firewall.
+description: Aplicativo para geracao de vouchers de acesso ao Guest WiFi.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -13,8 +13,6 @@ dependencies:
   provider: ^6.1.1
   shared_preferences: ^2.2.2
   http: ^1.2.0
-  qr_flutter: ^4.1.0
-  share_plus: ^7.2.1
   intl: ^0.19.0
 
 dev_dependencies:
