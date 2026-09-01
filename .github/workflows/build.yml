@@ -26,9 +26,9 @@ jobs:
       
       - name: Create fresh Flutter project
         run: |
-          flutter create -t app --org com.guestwifi --project-name voucher build_project
+          flutter create -t app --org com.guestwifi --project_name voucher build_project
           
-      - name: Copy source code and dependencies
+      - name: Copy source code
         run: |
           # Copiar código fonte
           cp -r mobile/lib/* build_project/lib/
@@ -36,7 +36,7 @@ jobs:
           # Copiar pubspec.yaml
           cp mobile/pubspec.yaml build_project/
           
-          # Remover arquivo de teste padrão (opcional)
+          # Remover arquivo de teste padrão
           rm -f build_project/test/widget_test.dart
       
       - name: Install dependencies
