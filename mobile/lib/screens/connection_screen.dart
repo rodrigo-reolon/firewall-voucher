@@ -27,6 +27,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     final hasConfig = await service.loadConfiguration();
     
     if (hasConfig && mounted) {
+      // Já tem configuração, tentar reconectar automaticamente
       _connect();
     }
   }
@@ -57,6 +58,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     try {
       final service = context.read<SophosVoucherService>();
       
+      // Configuração fixa - não precisa alterar!
       await service.configure(
         portalUrl: AppConfig.portalUrl,
         username: AppConfig.username,
@@ -99,6 +101,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Logo/Ícone
                 Icon(
                   Icons.wifi,
                   size: 80,
@@ -106,7 +109,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  AppConfig.ssid,
+                  'Reolon Visitantes',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.primary,
@@ -123,6 +126,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                 ),
                 const SizedBox(height: 48),
 
+                // Info do firewall
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -155,6 +159,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                 ),
                 const SizedBox(height: 24),
 
+                // Campo Senha
                 TextField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -176,6 +181,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                 ),
                 const SizedBox(height: 32),
 
+                // Botão Conectar
                 FilledButton.icon(
                   onPressed: _isLoading ? null : _connect,
                   icon: _isLoading
@@ -195,6 +201,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                 ),
                 const SizedBox(height: 24),
 
+                // Instruções
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
