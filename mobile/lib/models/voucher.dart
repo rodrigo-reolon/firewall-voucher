@@ -1,6 +1,6 @@
-/// Modelos de dados para o app Guest WiFi Voucher
 library models;
 
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 /// Representa um código de voucher gerado localmente

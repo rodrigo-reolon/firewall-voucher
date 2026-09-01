@@ -11,12 +11,11 @@ import '../models/voucher.dart';
 /// vouchers que são aceitos pelo Hotspot. Este serviço automatiza
 /// o processo de login e geração via scraping do portal.
 class SophosPortalService {
-  final String portalUrl; // Ex: https://192.168.130.71:223
+  final String portalUrl;
   final String username;
   final String password;
   final bool verifySsl;
 
-  // Cookies de sessão
   final Map<String, String> _cookies = {};
   String? _csrfToken;
 
@@ -27,18 +26,15 @@ class SophosPortalService {
     this.verifySsl = false,
   });
 
-  /// Cria cliente HTTP que ignora SSL autoassinado
   http.Client _createClient() {
     final httpClient = HttpClient()
       ..badCertificateCallback = (cert, host, port) => !verifySsl;
     return IOClient(httpClient);
   }
 
-  /// Atualiza cookies da resposta
   void _updateCookies(http.Response response) {
     final setCookie = response.headers['set-cookie'];
     if (setCookie != null) {
-      // Parse simples: name=value; path=/; ...
       final parts = setCookie.split(',');
       for (final part in parts) {
         final segments = part.split(';');
@@ -59,7 +55,6 @@ class SophosPortalService {
     }
   }
 
-  /// Retorna headers com cookies e CSRF token
   Map<String, String> _headers({Map<String, String>? extra}) {
     final cookieStr = _cookies.entries
         .map((e) => '${e.key}=${e.value}')
@@ -72,12 +67,10 @@ class SophosPortalService {
     };
   }
 
-  /// Efetua login no User Portal
   Future<void> login() async {
     final client = _createClient();
 
     try {
-      // Primeira requisição: obter token CSRF
       final getResponse = await client.get(
         Uri.parse('$portalUrl/'),
         headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'},
@@ -85,7 +78,6 @@ class SophosPortalService {
       _updateCookies(getResponse);
       _csrfToken = _extractCsrfToken(getResponse.body);
 
-      // Requisição de login
       final loginResponse = await client.post(
         Uri.parse('$portalUrl/index.php'),
         headers: _headers(
@@ -105,7 +97,6 @@ class SophosPortalService {
         throw Exception('Falha no login: HTTP ${loginResponse.statusCode}');
       }
 
-      // Verificar se logou com sucesso
       final body = loginResponse.body.toLowerCase();
       if (body.contains('invalid') ||
           body.contains('incorrect') ||
@@ -113,7 +104,6 @@ class SophosPortalService {
         throw Exception('Credenciais inválidas');
       }
 
-      // Tentar obter CSRF token da resposta de login
       final newToken = _extractCsrfToken(loginResponse.body);
       if (newToken != null) {
         _csrfToken = newToken;
@@ -123,9 +113,7 @@ class SophosPortalService {
     }
   }
 
-  /// Extrai token CSRF do HTML
   String? _extractCsrfToken(String html) {
-    // Procurar por: <input type="hidden" name="csrf_token" value="..." />
     final regex = RegExp(
       r'<input[^>]*name=["\']csrf_token["\'][^>]*value=["\']([^"\']+)["\']',
       caseSensitive: false,
@@ -133,7 +121,6 @@ class SophosPortalService {
     var match = regex.firstMatch(html);
     if (match != null) return match.group(1);
 
-    // Alternativa: name="token"
     final regex2 = RegExp(
       r'<input[^>]*name=["\']token["\'][^>]*value=["\']([^"\']+)["\']',
       caseSensitive: false,
@@ -141,7 +128,6 @@ class SophosPortalService {
     match = regex2.firstMatch(html);
     if (match != null) return match.group(1);
 
-    // Alternativa: meta name="csrf-token"
     final regex3 = RegExp(
       r'<meta[^>]*name=["\']csrf-token["\'][^>]*content=["\']([^"\']+)["\']',
       caseSensitive: false,
@@ -152,7 +138,6 @@ class SophosPortalService {
     return null;
   }
 
-  /// Lista hotspots disponíveis para o usuário
   Future<List<Map<String, String>>> listHotspots() async {
     final client = _createClient();
 
@@ -171,7 +156,6 @@ class SophosPortalService {
     }
   }
 
-  /// Lista definições de voucher de um hotspot
   Future<List<Map<String, String>>> listVoucherDefinitions(
       String hotspotName) async {
     final client = _createClient();
@@ -192,7 +176,6 @@ class SophosPortalService {
     }
   }
 
-  /// Gera vouchers via User Portal
   Future<List<String>> generateVouchers({
     required String hotspotName,
     required String definitionName,
@@ -230,7 +213,6 @@ class SophosPortalService {
     }
   }
 
-  /// Lista vouchers existentes
   Future<List<Map<String, dynamic>>> listVouchers({
     String? hotspotName,
   }) async {
@@ -256,7 +238,6 @@ class SophosPortalService {
     }
   }
 
-  /// Deleta um voucher
   Future<void> deleteVoucher(String hotspotName, String voucherCode) async {
     final client = _createClient();
 
@@ -281,7 +262,6 @@ class SophosPortalService {
     }
   }
 
-  /// Logout do portal
   Future<void> logout() async {
     final client = _createClient();
 
@@ -297,14 +277,9 @@ class SophosPortalService {
     }
   }
 
-  // =============================================
-  // PARSERS HTML (ajustar conforme portal real)
-  // =============================================
-
   List<Map<String, String>> _parseHotspots(String html) {
     final List<Map<String, String>> hotspots = [];
 
-    // Procurar por: <option value="nome_do_hotspot">Nome</option>
     final regex = RegExp(
       r'<option[^>]*value=["\']([^"\']+)["\'][^>]*>([^<]+)</option>',
       caseSensitive: false,
@@ -343,8 +318,6 @@ class SophosPortalService {
   List<String> _parseGeneratedVouchers(String html) {
     final List<String> codes = [];
 
-    // Códigos geralmente aparecem como texto simples em uma tabela ou lista
-    // Procurar por padrão de código alfanumérico de 8 caracteres
     final regex = RegExp(r'\b([A-Z0-9]{8})\b');
     for (final match in regex.allMatches(html)) {
       final code = match.group(1);
@@ -359,7 +332,6 @@ class SophosPortalService {
   List<Map<String, dynamic>> _parseVoucherList(String html) {
     final List<Map<String, dynamic>> vouchers = [];
 
-    // Tabelas geralmente têm <tr> com <td>
     final rowRegex = RegExp(r'<tr[^>]*>(.*?)</tr>', dotAll: true, caseSensitive: false);
     final cellRegex = RegExp(r'<td[^>]*>(.*?)</td>', dotAll: true, caseSensitive: false);
 

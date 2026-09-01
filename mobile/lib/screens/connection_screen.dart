@@ -177,7 +177,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                     ),
                   ),
                   textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _connect(),
+                  onSubmitted: (_) => _connect(),
                 ),
                 const SizedBox(height: 32),
 
