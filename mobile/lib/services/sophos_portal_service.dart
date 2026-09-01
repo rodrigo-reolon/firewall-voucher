@@ -116,7 +116,7 @@ class SophosPortalService {
   String? _extractCsrfToken(String html) {
     // Procurar por: <input type="hidden" name="csrf_token" value="..." />
     var regex = RegExp(
-      r'<input[^>]*name=["\']csrf_token["\'][^>]*value=["\']([^"\']+)["\']',
+      '<input[^>]*name=["\']csrf_token["\'][^>]*value=["\']([^"\']+)["\']',
       caseSensitive: false,
     );
     var match = regex.firstMatch(html);
@@ -124,7 +124,7 @@ class SophosPortalService {
 
     // Alternativa: name="token"
     regex = RegExp(
-      r'<input[^>]*name=["\']token["\'][^>]*value=["\']([^"\']+)["\']',
+      '<input[^>]*name=["\']token["\'][^>]*value=["\']([^"\']+)["\']',
       caseSensitive: false,
     );
     match = regex.firstMatch(html);
@@ -132,7 +132,7 @@ class SophosPortalService {
 
     // Alternativa: meta name="csrf-token"
     regex = RegExp(
-      r'<meta[^>]*name=["\']csrf-token["\'][^>]*content=["\']([^"\']+)["\']',
+      '<meta[^>]*name=["\']csrf-token["\'][^>]*content=["\']([^"\']+)["\']',
       caseSensitive: false,
     );
     match = regex.firstMatch(html);
@@ -284,7 +284,7 @@ class SophosPortalService {
     final List<Map<String, String>> hotspots = [];
 
     final regex = RegExp(
-      r'<option[^>]*value=["\']([^"\']+)["\'][^>]*>([^<]+)</option>',
+      '<option[^>]*value=["\']([^"\']+)["\'][^>]*>([^<]+)</option>',
       caseSensitive: false,
     );
 
@@ -303,7 +303,7 @@ class SophosPortalService {
     final List<Map<String, String>> definitions = [];
 
     final regex = RegExp(
-      r'<option[^>]*value=["\']([^"\']+)["\'][^>]*>([^<]+)</option>',
+      '<option[^>]*value=["\']([^"\']+)["\'][^>]*>([^<]+)</option>',
       caseSensitive: false,
     );
 
