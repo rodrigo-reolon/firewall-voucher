@@ -24,13 +24,20 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
       
-      - name: Create Flutter project
-        run: flutter create -t app --org com.guestwifi --project-name voucher build_project
-      
-      - name: Copy source code
+      - name: Create fresh Flutter project
         run: |
+          flutter create -t app --org com.guestwifi --project-name voucher build_project
+          
+      - name: Copy source code and dependencies
+        run: |
+          # Copiar código fonte
           cp -r mobile/lib/* build_project/lib/
+          
+          # Copiar pubspec.yaml
           cp mobile/pubspec.yaml build_project/
+          
+          # Remover arquivo de teste padrão (opcional)
+          rm -f build_project/test/widget_test.dart
       
       - name: Install dependencies
         run: |
