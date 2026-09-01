@@ -26,27 +26,16 @@ jobs:
       
       - name: Create Flutter project and copy code
         run: |
-          # Criar projeto Flutter temporário
           flutter create -t app --org com.guestwifi --project-name voucher temp_project
-          
-          # Copiar código fonte
           cp -r mobile/lib/* temp_project/lib/
-          
-          # Copiar pubspec.yaml
           cp mobile/pubspec.yaml temp_project/
-          
-          # Copiar recursos (se existirem)
-          if [ -d "mobile/assets" ]; then
-            cp -r mobile/assets temp_project/
-          fi
-          
-          # Mostrar estrutura
           ls -la temp_project/
           ls -la temp_project/lib/
       
-      - name: Install dependencies
+      - name: Clean and Install dependencies
         run: |
           cd temp_project
+          flutter clean
           flutter pub get
       
       - name: Build APK
