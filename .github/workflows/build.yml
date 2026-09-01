@@ -29,19 +29,18 @@ jobs:
           flutter create -t app --org com.guestwifi --project-name voucher temp_project
           cp -r mobile/lib/* temp_project/lib/
           cp mobile/pubspec.yaml temp_project/
-          ls -la temp_project/
-          ls -la temp_project/lib/
       
       - name: Clean and Install dependencies
         run: |
           cd temp_project
           flutter clean
+          rm -rf build .dart_tool android/.gradle
           flutter pub get
       
       - name: Build APK
         run: |
           cd temp_project
-          flutter build apk --release --verbose
+          flutter build apk --release
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
