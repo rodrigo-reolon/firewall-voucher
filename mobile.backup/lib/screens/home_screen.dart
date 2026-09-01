@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/sophos_voucher_service.dart';
-import '../config.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -132,7 +134,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           _lastGeneratedCodes = codes;
         });
         
+        // Limpar campos
         _descriptionController.clear();
+        
+        // Ir para aba de vouchers
         _tabController.animateTo(1);
         
         ScaffoldMessenger.of(context).showSnackBar(
@@ -153,6 +158,82 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     }
   }
 
+  void _copyCode(String code) {
+    Clipboard.setData(ClipboardData(text: code));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Código $code copiado!')),
+    );
+  }
+
+  void _shareViaWhatsApp(String code) {
+    final message = '''
+*Código de Acesso - Guest WiFi*
+
+Código: *${code}*
+
+Use este código para se conectar à rede Guest WiFi.
+''';
+
+    Share.share(message);
+  }
+
+  void _revokeVoucher(String code) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Revogar Voucher'),
+        content: Text('Deseja realmente revogar o código $code?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                final service = context.read<SophosVoucherService>();
+                await service.revokeVoucher(_selectedHotspot!, code);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Código $code revogado')),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Erro: $e')),
+                );
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Revogar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _logout() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Desconectar'),
+        content: const Text('Deseja realmente desconectar do portal?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.read<SophosVoucherService>().disconnect();
+            },
+            child: const Text('Desconectar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -161,10 +242,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              final service = context.read<SophosVoucherService>();
-              await service.disconnect();
-            },
+            onPressed: _logout,
+            tooltip: 'Desconectar',
           ),
         ],
         bottom: TabBar(
@@ -193,6 +272,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Card de Geração
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -207,6 +287,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   ),
                   const SizedBox(height: 20),
 
+                  // Seletor de Hotspot
                   if (_hotspots.isNotEmpty) ...[
                     DropdownButtonFormField<String>(
                       value: _selectedHotspot,
@@ -233,6 +314,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     const SizedBox(height: 16),
                   ],
 
+                  // Seletor de Definição
                   if (_definitions.isNotEmpty) ...[
                     DropdownButtonFormField<String>(
                       value: _selectedDefinition,
@@ -252,8 +334,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       },
                     ),
                     const SizedBox(height: 16),
-                  ),
+                  ],
 
+                  // Quantidade
                   TextField(
                     controller: _quantityController,
                     decoration: const InputDecoration(
@@ -265,6 +348,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   ),
                   const SizedBox(height: 16),
 
+                  // Descrição
                   TextField(
                     controller: _descriptionController,
                     decoration: const InputDecoration(
@@ -275,6 +359,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   ),
                   const SizedBox(height: 24),
 
+                  // Botão Gerar
                   FilledButton.icon(
                     onPressed: _isLoading ? null : _generateVouchers,
                     icon: _isLoading
@@ -290,6 +375,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     label: Text(_isLoading ? 'Gerando...' : 'Gerar Vouchers'),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
+                      textStyle: const TextStyle(fontSize: 16),
                     ),
                   ),
                 ],
@@ -298,6 +384,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           const SizedBox(height: 24),
 
+          // Últimos gerados
           if (_lastGeneratedCodes.isNotEmpty) ...[
             Card(
               color: Colors.green.shade50,
@@ -331,11 +418,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                 fontSize: 20,
                               ),
                             ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.copy),
-                              onPressed: () {
-                                // Copiar código
-                              },
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.copy),
+                                  onPressed: () => _copyCode(code),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.share, color: Colors.green),
+                                  onPressed: () => _shareViaWhatsApp(code),
+                                ),
+                              ],
                             ),
                           ),
                         ))),
@@ -399,6 +493,47 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     ),
                   ),
                   subtitle: description.isNotEmpty ? Text(description) : null,
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'copy':
+                          _copyCode(code);
+                          break;
+                        case 'share':
+                          _shareViaWhatsApp(code);
+                          break;
+                        case 'revoke':
+                          _revokeVoucher(code);
+                          break;
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'copy',
+                        child: ListTile(
+                          leading: Icon(Icons.copy),
+                          title: Text('Copiar'),
+                          dense: true,
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'share',
+                        child: ListTile(
+                          leading: Icon(Icons.share),
+                          title: Text('WhatsApp'),
+                          dense: true,
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'revoke',
+                        child: ListTile(
+                          leading: Icon(Icons.cancel, color: Colors.red),
+                          title: Text('Revogar', style: TextStyle(color: Colors.red)),
+                          dense: true,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -416,6 +551,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Status da conexão
               Card(
                 color: service.isConnected ? Colors.green.shade50 : Colors.red.shade50,
                 child: Padding(
@@ -440,6 +576,31 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                               style: const TextStyle(color: Colors.red, fontSize: 12),
                             ),
                         ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Info
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Como funciona',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        '1. Conecte-se ao portal do Sophos (porta 223)\n'
+                        '2. Selecione o hotspot e definição de voucher\n'
+                        '3. Clique em "Gerar Vouchers"\n'
+                        '4. Os códigos são criados diretamente no firewall\n'
+                        '5. Compartilhe via WhatsApp ou copie',
                       ),
                     ],
                   ),

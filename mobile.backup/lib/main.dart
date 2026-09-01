@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'screens/home_screen.dart';
 import 'screens/connection_screen.dart';
+import 'screens/home_screen.dart';
 import 'services/sophos_voucher_service.dart';
 
 void main() {

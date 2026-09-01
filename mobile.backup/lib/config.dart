@@ -17,7 +17,7 @@ class AppConfig {
   
   // Senha do usuário (deixar vazio para pedir ao usuário no app)
   // Se preencher, o app já conecta automaticamente sem pedir senha
-  static const String password = '';
+  static const String password = 'Ajobeyin2009!';
   
   // =============================================
   // CONFIGURAÇÕES DO APP
