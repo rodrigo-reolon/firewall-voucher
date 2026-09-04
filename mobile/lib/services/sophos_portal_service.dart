@@ -27,6 +27,7 @@ class SophosPortalService {
   void _updateCookies(http.Response response) {
     final setCookie = response.headers['set-cookie'];
     if (setCookie != null) {
+      // Pode ter múltiplos cookies separados por vírgula
       final parts = setCookie.split(',');
       for (final part in parts) {
         final segments = part.split(';');
@@ -35,10 +36,13 @@ class SophosPortalService {
             final eqIndex = segment.trim().indexOf('=');
             final name = segment.trim().substring(0, eqIndex).trim();
             final value = segment.trim().substring(eqIndex + 1).trim();
+            // Ignorar atributos de cookie
             if (name.toLowerCase() != 'path' &&
                 name.toLowerCase() != 'expires' &&
                 name.toLowerCase() != 'httponly' &&
-                name.toLowerCase() != 'secure') {
+                name.toLowerCase() != 'secure' &&
+                name.toLowerCase() != 'samesite' &&
+                name.isNotEmpty) {
               _cookies[name] = value;
             }
           }
@@ -60,40 +64,37 @@ class SophosPortalService {
   Future<void> login() async {
     final client = _createClient();
     try {
-      // 1. GET inicial para obter cookies
-      final getResp = await client.get(
-        Uri.parse('$portalUrl/userportal/'),
-        headers: {'User-Agent': 'Mozilla/5.0'},
-      );
+      // 1. GET inicial para cookies
+      final getResp = await client.get(Uri.parse('$portalUrl/userportal/'), headers: {'User-Agent': 'Mozilla/5.0'});
       _updateCookies(getResp);
 
-      // 2. POST login.php
+      // 2. POST AJAX para /userportal/Controller com mode=451
+      final loginData = jsonEncode({
+        'username': username,
+        'password': password,
+        'languageid': '1',
+      });
+
+      final postBody = 'mode=451&json=${Uri.encodeComponent(loginData)}';
+
       final loginResp = await client.post(
-        Uri.parse('$portalUrl/userportal/login.php'),
+        Uri.parse('$portalUrl/userportal/Controller'),
         headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}),
-        body: {
-          'username': username,
-          'password': password,
-          'login_username': '',
-          'mode': '1',
-          'loginbutton': 'Login'
-        },
+        body: postBody,
       );
+
       _updateCookies(loginResp);
 
-      // 3. Verificar resultado
-      final body = loginResp.body.toLowerCase();
-      
-      if (body.contains('logout') || body.contains('hotspot') || body.contains('voucher') || body.contains('myaccount')) {
-        return; // Login OK
+      if (loginResp.statusCode == 200) {
+        final respJson = jsonDecode(loginResp.body);
+        if (respJson['status'] == 200) {
+          return; // Login OK
+        } else if (respJson['status'] == 299) {
+          throw Exception('Senha expirou');
+        } else {
+          throw Exception('Login falhou: ${respJson['status']}');
+        }
       }
-      
-      if (body.contains('invalid') || body.contains('incorrect') || body.contains('failed') || body.contains('error')) {
-        throw Exception('Credenciais inválidas');
-      }
-      
-      // Se chegou aqui, assumir que logou (mesmo sem redirect claro)
-      return;
     } finally {
       client.close();
     }
@@ -102,10 +103,7 @@ class SophosPortalService {
   Future<List<Map<String, String>>> listHotspots() async {
     final client = _createClient();
     try {
-      final resp = await client.get(
-        Uri.parse('$portalUrl/userportal/index.php?action=hotspots'),
-        headers: _headers(),
-      );
+      final resp = await client.get(Uri.parse('$portalUrl/userportal/index.php?action=hotspots'), headers: _headers());
       _updateCookies(resp);
       return _parseOptions(resp.body);
     } finally {
@@ -116,10 +114,7 @@ class SophosPortalService {
   Future<List<Map<String, String>>> listVoucherDefinitions(String hotspotName) async {
     final client = _createClient();
     try {
-      final resp = await client.get(
-        Uri.parse('$portalUrl/userportal/index.php?action=hotspots&hotspot=$hotspotName'),
-        headers: _headers(),
-      );
+      final resp = await client.get(Uri.parse('$portalUrl/userportal/index.php?action=hotspots&hotspot=$hotspotName'), headers: _headers());
       _updateCookies(resp);
       return _parseOptions(resp.body);
     } finally {
@@ -130,11 +125,7 @@ class SophosPortalService {
   Future<List<String>> generateVouchers({required String hotspotName, required String definitionName, required int amount, String? description}) async {
     final client = _createClient();
     try {
-      final resp = await client.post(
-        Uri.parse('$portalUrl/userportal/index.php'),
-        headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}),
-        body: {'action': 'create_vouchers', 'hotspot': hotspotName, 'voucher_definition': definitionName, 'amount': amount.toString(), 'description': description ?? ''},
-      );
+      final resp = await client.post(Uri.parse('$portalUrl/userportal/index.php'), headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}), body: {'action': 'create_vouchers', 'hotspot': hotspotName, 'voucher_definition': definitionName, 'amount': amount.toString(), 'description': description ?? ''});
       _updateCookies(resp);
       return _parseGeneratedVouchers(resp.body);
     } finally {
