@@ -61,11 +61,9 @@ class SophosPortalService {
   Future<void> login() async {
     final client = _createClient();
     try {
-      // GET inicial para obter cookies
       final getResponse = await client.get(Uri.parse('$portalUrl/'), headers: {'User-Agent': 'Mozilla/5.0'});
       _updateCookies(getResponse);
 
-      // POST login
       final loginResponse = await client.post(
         Uri.parse('$portalUrl/userportal/login.php'),
         headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}),
@@ -83,7 +81,7 @@ class SophosPortalService {
       if (loginResponse.statusCode == 302) {
         final location = loginResponse.headers['location'] ?? '';
         if (location.contains('logout')) {
-          return; // Login bem sucedido
+          return;
         }
       }
 
@@ -194,7 +192,8 @@ class SophosPortalService {
 
   List<Map<String, String>> _parseHotspots(String html) {
     final List<Map<String, String>> hotspots = [];
-    final regex = RegExp(r'<option[^>]*value=["\']([^"\']+)["\'][^>]*>([^<]+)</option>', caseSensitive: false);
+    // Using triple-quoted string to avoid raw string issues
+    final regex = RegExp('''<option[^>]*value=["']([^"']+)["'][^>]*>([^<]+)</option>''', caseSensitive: false);
     for (final match in regex.allMatches(html)) {
       final name = match.group(1)?.trim();
       final label = match.group(2)?.trim();
@@ -207,7 +206,7 @@ class SophosPortalService {
 
   List<Map<String, String>> _parseVoucherDefinitions(String html) {
     final List<Map<String, String>> definitions = [];
-    final regex = RegExp(r'<option[^>]*value=["\']([^"\']+)["\'][^>]*>([^<]+)</option>', caseSensitive: false);
+    final regex = RegExp('''<option[^>]*value=["']([^"']+)["'][^>]*>([^<]+)</option>''', caseSensitive: false);
     for (final match in regex.allMatches(html)) {
       final name = match.group(1)?.trim();
       final label = match.group(2)?.trim();
