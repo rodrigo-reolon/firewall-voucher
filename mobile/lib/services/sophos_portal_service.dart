@@ -54,7 +54,6 @@ class SophosPortalService {
     return {
       'Cookie': cookieStr,
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      if (_csrfToken != null) 'X-CSRF-Token': _csrfToken!,
       if (extra != null) ...extra,
     };
   }
@@ -62,61 +61,49 @@ class SophosPortalService {
   Future<void> login() async {
     final client = _createClient();
     try {
-      final getResponse = await client.get(
-        Uri.parse('$portalUrl/'),
-        headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'},
-      );
+      // GET inicial para obter cookies
+      final getResponse = await client.get(Uri.parse('$portalUrl/'), headers: {'User-Agent': 'Mozilla/5.0'});
       _updateCookies(getResponse);
-      _csrfToken = _extractCsrfToken(getResponse.body);
 
+      // POST login
       final loginResponse = await client.post(
-        Uri.parse('$portalUrl/index.php'),
+        Uri.parse('$portalUrl/userportal/login.php'),
         headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}),
         body: {
-          'action': 'login',
           'username': username,
           'password': password,
-          if (_csrfToken != null) 'csrf_token': _csrfToken!,
+          'login_username': '',
+          'mode': '1',
+          'loginbutton': 'Login'
         },
       );
+
       _updateCookies(loginResponse);
 
-      if (loginResponse.statusCode != 200) {
-        throw Exception('Falha no login: HTTP ${loginResponse.statusCode}');
+      if (loginResponse.statusCode == 302) {
+        final location = loginResponse.headers['location'] ?? '';
+        if (location.contains('logout')) {
+          return; // Login bem sucedido
+        }
       }
+
       final body = loginResponse.body.toLowerCase();
       if (body.contains('invalid') || body.contains('incorrect') || body.contains('failed')) {
         throw Exception('Credenciais inválidas');
       }
-      final newToken = _extractCsrfToken(loginResponse.body);
-      if (newToken != null) _csrfToken = newToken;
     } finally {
       client.close();
     }
   }
 
-  String? _extractCsrfToken(String html) {
-    var regex = RegExp(r'''<input[^>]*name=["']csrf_token["'][^>]*value=["']([^"']+)["']''', caseSensitive: false);
-    var match = regex.firstMatch(html);
-    if (match != null) return match.group(1);
-
-    regex = RegExp(r'''<input[^>]*name=["']token["'][^>]*value=["']([^"']+)["']''', caseSensitive: false);
-    match = regex.firstMatch(html);
-    if (match != null) return match.group(1);
-
-    regex = RegExp(r'''<meta[^>]*name=["']csrf-token["'][^>]*content=["']([^"']+)["']''', caseSensitive: false);
-    match = regex.firstMatch(html);
-    if (match != null) return match.group(1);
-
-    return null;
-  }
-
   Future<List<Map<String, String>>> listHotspots() async {
     final client = _createClient();
     try {
-      final response = await client.get(Uri.parse('$portalUrl/index.php?action=hotspots'), headers: _headers());
+      final response = await client.get(
+        Uri.parse('$portalUrl/userportal/index.php?action=hotspots'),
+        headers: _headers(),
+      );
       _updateCookies(response);
-      _csrfToken = _extractCsrfToken(response.body) ?? _csrfToken;
       return _parseHotspots(response.body);
     } finally {
       client.close();
@@ -126,21 +113,37 @@ class SophosPortalService {
   Future<List<Map<String, String>>> listVoucherDefinitions(String hotspotName) async {
     final client = _createClient();
     try {
-      final response = await client.get(Uri.parse('$portalUrl/index.php?action=hotspots&hotspot=$hotspotName'), headers: _headers());
+      final response = await client.get(
+        Uri.parse('$portalUrl/userportal/index.php?action=hotspots&hotspot=$hotspotName'),
+        headers: _headers(),
+      );
       _updateCookies(response);
-      _csrfToken = _extractCsrfToken(response.body) ?? _csrfToken;
       return _parseVoucherDefinitions(response.body);
     } finally {
       client.close();
     }
   }
 
-  Future<List<String>> generateVouchers({required String hotspotName, required String definitionName, required int amount, String? description}) async {
+  Future<List<String>> generateVouchers({
+    required String hotspotName,
+    required String definitionName,
+    required int amount,
+    String? description,
+  }) async {
     final client = _createClient();
     try {
-      final response = await client.post(Uri.parse('$portalUrl/index.php'), headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}), body: {'action': 'create_vouchers', 'hotspot': hotspotName, 'voucher_definition': definitionName, 'amount': amount.toString(), 'description': description ?? '', if (_csrfToken != null) 'csrf_token': _csrfToken!});
+      final response = await client.post(
+        Uri.parse('$portalUrl/userportal/index.php'),
+        headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}),
+        body: {
+          'action': 'create_vouchers',
+          'hotspot': hotspotName,
+          'voucher_definition': definitionName,
+          'amount': amount.toString(),
+          'description': description ?? '',
+        },
+      );
       _updateCookies(response);
-      _csrfToken = _extractCsrfToken(response.body) ?? _csrfToken;
       if (response.statusCode != 200) throw Exception('Falha ao gerar vouchers');
       return _parseGeneratedVouchers(response.body);
     } finally {
@@ -151,11 +154,10 @@ class SophosPortalService {
   Future<List<Map<String, dynamic>>> listVouchers({String? hotspotName}) async {
     final client = _createClient();
     try {
-      var url = '$portalUrl/index.php?action=hotspots&tab=vouchers';
+      var url = '$portalUrl/userportal/index.php?action=hotspots&tab=vouchers';
       if (hotspotName != null) url += '&hotspot=$hotspotName';
       final response = await client.get(Uri.parse(url), headers: _headers());
       _updateCookies(response);
-      _csrfToken = _extractCsrfToken(response.body) ?? _csrfToken;
       return _parseVoucherList(response.body);
     } finally {
       client.close();
@@ -165,9 +167,15 @@ class SophosPortalService {
   Future<void> deleteVoucher(String hotspotName, String voucherCode) async {
     final client = _createClient();
     try {
-      await client.post(Uri.parse('$portalUrl/index.php'), headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}), body: {'action': 'delete_voucher', 'hotspot': hotspotName, 'voucher_code': voucherCode, if (_csrfToken != null) 'csrf_token': _csrfToken!});
-      // ignore: unused_local_variable
-      _csrfToken = _csrfToken;
+      await client.post(
+        Uri.parse('$portalUrl/userportal/index.php'),
+        headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}),
+        body: {
+          'action': 'delete_voucher',
+          'hotspot': hotspotName,
+          'voucher_code': voucherCode,
+        },
+      );
     } finally {
       client.close();
     }
@@ -176,7 +184,7 @@ class SophosPortalService {
   Future<void> logout() async {
     final client = _createClient();
     try {
-      await client.get(Uri.parse('$portalUrl/index.php?action=logout'), headers: _headers());
+      await client.get(Uri.parse('$portalUrl/userportal/webpages/logout.jsp'), headers: _headers());
     } finally {
       client.close();
       _cookies.clear();
@@ -186,11 +194,11 @@ class SophosPortalService {
 
   List<Map<String, String>> _parseHotspots(String html) {
     final List<Map<String, String>> hotspots = [];
-    final regex = RegExp(r'''<option[^>]*value=["']([^"']+)["'][^>]*>([^<]+)</option>''', caseSensitive: false);
+    final regex = RegExp(r'<option[^>]*value=["\']([^"\']+)["\'][^>]*>([^<]+)</option>', caseSensitive: false);
     for (final match in regex.allMatches(html)) {
       final name = match.group(1)?.trim();
       final label = match.group(2)?.trim();
-      if (name != null && name.isNotEmpty && !name.startsWith('Choose')) {
+      if (name != null && name.isNotEmpty && !name.toLowerCase().contains('choose')) {
         hotspots.add({'name': name, 'label': label ?? name});
       }
     }
@@ -199,7 +207,7 @@ class SophosPortalService {
 
   List<Map<String, String>> _parseVoucherDefinitions(String html) {
     final List<Map<String, String>> definitions = [];
-    final regex = RegExp(r'''<option[^>]*value=["']([^"']+)["'][^>]*>([^<]+)</option>''', caseSensitive: false);
+    final regex = RegExp(r'<option[^>]*value=["\']([^"\']+)["\'][^>]*>([^<]+)</option>', caseSensitive: false);
     for (final match in regex.allMatches(html)) {
       final name = match.group(1)?.trim();
       final label = match.group(2)?.trim();
