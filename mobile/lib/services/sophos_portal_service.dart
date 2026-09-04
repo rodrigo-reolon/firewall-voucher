@@ -83,9 +83,8 @@ class SophosPortalService {
 
       // 3. Verificar resultado
       final body = loginResp.body.toLowerCase();
-      final url = loginResp.url.toString().toLowerCase();
       
-      if (url.contains('logout') || url.contains('myaccount') || body.contains('logout') || body.contains('hotspot')) {
+      if (body.contains('logout') || body.contains('hotspot') || body.contains('voucher') || body.contains('myaccount')) {
         return; // Login OK
       }
       
