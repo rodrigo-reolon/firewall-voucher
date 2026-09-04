@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
-import '../models/voucher.dart';
 
 class SophosPortalService {
   final String portalUrl;
@@ -11,7 +10,6 @@ class SophosPortalService {
   final bool verifySsl;
 
   final Map<String, String> _cookies = {};
-  String? _csrfToken;
 
   SophosPortalService({
     required this.portalUrl,
@@ -54,6 +52,7 @@ class SophosPortalService {
     return {
       'Cookie': cookieStr,
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'X-Requested-With': 'XMLHttpRequest',
       if (extra != null) ...extra,
     };
   }
@@ -61,10 +60,15 @@ class SophosPortalService {
   Future<void> login() async {
     final client = _createClient();
     try {
-      final getResponse = await client.get(Uri.parse('$portalUrl/'), headers: {'User-Agent': 'Mozilla/5.0'});
-      _updateCookies(getResponse);
+      // 1. GET inicial para obter cookies
+      final getResp = await client.get(
+        Uri.parse('$portalUrl/userportal/'),
+        headers: {'User-Agent': 'Mozilla/5.0'},
+      );
+      _updateCookies(getResp);
 
-      final loginResponse = await client.post(
+      // 2. POST login.php
+      final loginResp = await client.post(
         Uri.parse('$portalUrl/userportal/login.php'),
         headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}),
         body: {
@@ -75,20 +79,22 @@ class SophosPortalService {
           'loginbutton': 'Login'
         },
       );
+      _updateCookies(loginResp);
 
-      _updateCookies(loginResponse);
-
-      if (loginResponse.statusCode == 302) {
-        final location = loginResponse.headers['location'] ?? '';
-        if (location.contains('logout')) {
-          return;
-        }
+      // 3. Verificar resultado
+      final body = loginResp.body.toLowerCase();
+      final url = loginResp.url.toString().toLowerCase();
+      
+      if (url.contains('logout') || url.contains('myaccount') || body.contains('logout') || body.contains('hotspot')) {
+        return; // Login OK
       }
-
-      final body = loginResponse.body.toLowerCase();
-      if (body.contains('invalid') || body.contains('incorrect') || body.contains('failed')) {
+      
+      if (body.contains('invalid') || body.contains('incorrect') || body.contains('failed') || body.contains('error')) {
         throw Exception('Credenciais inválidas');
       }
+      
+      // Se chegou aqui, assumir que logou (mesmo sem redirect claro)
+      return;
     } finally {
       client.close();
     }
@@ -97,12 +103,12 @@ class SophosPortalService {
   Future<List<Map<String, String>>> listHotspots() async {
     final client = _createClient();
     try {
-      final response = await client.get(
+      final resp = await client.get(
         Uri.parse('$portalUrl/userportal/index.php?action=hotspots'),
         headers: _headers(),
       );
-      _updateCookies(response);
-      return _parseHotspots(response.body);
+      _updateCookies(resp);
+      return _parseOptions(resp.body);
     } finally {
       client.close();
     }
@@ -111,39 +117,27 @@ class SophosPortalService {
   Future<List<Map<String, String>>> listVoucherDefinitions(String hotspotName) async {
     final client = _createClient();
     try {
-      final response = await client.get(
+      final resp = await client.get(
         Uri.parse('$portalUrl/userportal/index.php?action=hotspots&hotspot=$hotspotName'),
         headers: _headers(),
       );
-      _updateCookies(response);
-      return _parseVoucherDefinitions(response.body);
+      _updateCookies(resp);
+      return _parseOptions(resp.body);
     } finally {
       client.close();
     }
   }
 
-  Future<List<String>> generateVouchers({
-    required String hotspotName,
-    required String definitionName,
-    required int amount,
-    String? description,
-  }) async {
+  Future<List<String>> generateVouchers({required String hotspotName, required String definitionName, required int amount, String? description}) async {
     final client = _createClient();
     try {
-      final response = await client.post(
+      final resp = await client.post(
         Uri.parse('$portalUrl/userportal/index.php'),
         headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}),
-        body: {
-          'action': 'create_vouchers',
-          'hotspot': hotspotName,
-          'voucher_definition': definitionName,
-          'amount': amount.toString(),
-          'description': description ?? '',
-        },
+        body: {'action': 'create_vouchers', 'hotspot': hotspotName, 'voucher_definition': definitionName, 'amount': amount.toString(), 'description': description ?? ''},
       );
-      _updateCookies(response);
-      if (response.statusCode != 200) throw Exception('Falha ao gerar vouchers');
-      return _parseGeneratedVouchers(response.body);
+      _updateCookies(resp);
+      return _parseGeneratedVouchers(resp.body);
     } finally {
       client.close();
     }
@@ -154,9 +148,9 @@ class SophosPortalService {
     try {
       var url = '$portalUrl/userportal/index.php?action=hotspots&tab=vouchers';
       if (hotspotName != null) url += '&hotspot=$hotspotName';
-      final response = await client.get(Uri.parse(url), headers: _headers());
-      _updateCookies(response);
-      return _parseVoucherList(response.body);
+      final resp = await client.get(Uri.parse(url), headers: _headers());
+      _updateCookies(resp);
+      return _parseTable(resp.body);
     } finally {
       client.close();
     }
@@ -165,15 +159,7 @@ class SophosPortalService {
   Future<void> deleteVoucher(String hotspotName, String voucherCode) async {
     final client = _createClient();
     try {
-      await client.post(
-        Uri.parse('$portalUrl/userportal/index.php'),
-        headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}),
-        body: {
-          'action': 'delete_voucher',
-          'hotspot': hotspotName,
-          'voucher_code': voucherCode,
-        },
-      );
+      await client.post(Uri.parse('$portalUrl/userportal/index.php'), headers: _headers(extra: {'Content-Type': 'application/x-www-form-urlencoded'}), body: {'action': 'delete_voucher', 'hotspot': hotspotName, 'voucher_code': voucherCode});
     } finally {
       client.close();
     }
@@ -186,35 +172,20 @@ class SophosPortalService {
     } finally {
       client.close();
       _cookies.clear();
-      _csrfToken = null;
     }
   }
 
-  List<Map<String, String>> _parseHotspots(String html) {
-    final List<Map<String, String>> hotspots = [];
-    // Using triple-quoted string to avoid raw string issues
-    final regex = RegExp('''<option[^>]*value=["']([^"']+)["'][^>]*>([^<]+)</option>''', caseSensitive: false);
+  List<Map<String, String>> _parseOptions(String html) {
+    final List<Map<String, String>> items = [];
+    final regex = RegExp('<option[^>]*value="([^"]+)"[^>]*>([^<]+)</option>', caseSensitive: false);
     for (final match in regex.allMatches(html)) {
       final name = match.group(1)?.trim();
       final label = match.group(2)?.trim();
       if (name != null && name.isNotEmpty && !name.toLowerCase().contains('choose')) {
-        hotspots.add({'name': name, 'label': label ?? name});
+        items.add({'name': name, 'label': label ?? name});
       }
     }
-    return hotspots;
-  }
-
-  List<Map<String, String>> _parseVoucherDefinitions(String html) {
-    final List<Map<String, String>> definitions = [];
-    final regex = RegExp('''<option[^>]*value=["']([^"']+)["'][^>]*>([^<]+)</option>''', caseSensitive: false);
-    for (final match in regex.allMatches(html)) {
-      final name = match.group(1)?.trim();
-      final label = match.group(2)?.trim();
-      if (name != null && name.isNotEmpty) {
-        definitions.add({'name': name, 'label': label ?? name});
-      }
-    }
-    return definitions;
+    return items;
   }
 
   List<String> _parseGeneratedVouchers(String html) {
@@ -227,16 +198,16 @@ class SophosPortalService {
     return codes;
   }
 
-  List<Map<String, dynamic>> _parseVoucherList(String html) {
-    final List<Map<String, dynamic>> vouchers = [];
+  List<Map<String, dynamic>> _parseTable(String html) {
+    final List<Map<String, dynamic>> rows = [];
     final rowRegex = RegExp(r'<tr[^>]*>(.*?)</tr>', dotAll: true, caseSensitive: false);
     final cellRegex = RegExp(r'<td[^>]*>(.*?)</td>', dotAll: true, caseSensitive: false);
     for (final rowMatch in rowRegex.allMatches(html)) {
       final cells = cellRegex.allMatches(rowMatch.group(1)!).map((m) => m.group(1)?.replaceAll(RegExp(r'<[^>]+>'), '').trim() ?? '').toList();
       if (cells.length >= 3) {
-        vouchers.add({'code': cells[0], 'description': cells.length > 1 ? cells[1] : '', 'status': cells.length > 2 ? cells[2] : ''});
+        rows.add({'code': cells[0], 'description': cells.length > 1 ? cells[1] : '', 'status': cells.length > 2 ? cells[2] : ''});
       }
     }
-    return vouchers;
+    return rows;
   }
 }
